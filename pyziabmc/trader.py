@@ -49,13 +49,12 @@ class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    def __init__(self, name, maxq, mpi, delta, alpha):
-        '''Provider has own mpi and delta; a local_book to track outstanding orders and a 
+    def __init__(self, name, maxq, delta, alpha):
+        '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Provider'
-        self._mpi = mpi
         self._delta = delta
         self.delta_p = math.floor(random.expovariate(alpha) + 1)*self._quantity
         self.local_book = {}
@@ -98,7 +97,7 @@ class Provider(ZITrader):
         else:
             price = self._choose_price_from_exp('ask', qsignal['best_bid'], lambda_t)
             side = 'sell'
-        q = self._make_add_quote(time, self._max_quantity, side, price)
+        q = self._make_add_quote(time, self._quantity, side, price)
         self.local_book[q['order_id']] = q
         self.quote_collector.append(q)            
       
@@ -107,9 +106,102 @@ class Provider(ZITrader):
         # make pricing explicit for now. Logic scales for other mpi.
         plug = np.int(lambda_t*np.log(np.random.rand()))
         if side == 'bid':
-            #price = np.int(5*np.floor((inside_price-1-plug)/5))
             price = inside_price-1-plug
         else:
-            #price = np.int(5*np.ceil((inside_price+1+plug)/5))
             price = inside_price+1+plug
         return price
+    
+    
+class Provider5(Provider):
+    '''
+    Provider5 generates quotes (dicts) based on make probability.
+    
+    Subclass of Provider
+    '''
+
+    def __init__(self, name, maxq, delta, alpha):
+        '''Provider has own delta; a local_book to track outstanding orders and a 
+        cancel_collector to convey cancel messages to the exchange.
+        '''
+        Provider.__init__(self, name, maxq, delta, alpha)
+
+    def _choose_price_from_exp(self, side, inside_price, lambda_t):
+        '''Prices chosen from an exponential distribution'''
+        plug = np.int(lambda_t*np.log(np.random.rand()))
+        if side == 'bid':
+            price = np.int(5*np.floor((inside_price-1-plug)/5))
+        else:
+            price = np.int(5*np.ceil((inside_price+1+plug)/5))
+        return price
+    
+    
+class Taker(ZITrader):
+    '''
+    Taker generates quotes (dicts) based on take probability.
+        
+    Subclass of ZITrader
+    Public attributes: trader_type, quote_collector (from ZITrader)
+    Public methods: process_signal 
+    '''
+
+    def __init__(self, name, maxq, mu):
+        ZITrader.__init__(self, name, maxq)
+        self.trader_type = 'Taker'
+        self.delta_t = math.floor(random.expovariate(mu) + 1)*self._quantity
+        
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2})'.format(self._trader_id, self._quantity, self.trader_type)
+        
+    def process_signal(self, time, q_taker):
+        '''Taker buys or sells with 50% probability.'''
+        self.quote_collector.clear()
+        if random.uniform(0,1) < q_taker: # q_taker > 0.5 implies greater probability of a buy order
+            price = 2000000 # agent buys at max price (or better)
+            side = 'buy'
+        else:
+            price = 0 # agent sells at min price (or better)
+            side = 'sell'
+        q = self._make_add_quote(time, self._quantity, side, price)
+        self.quote_collector.append(q)
+        
+        
+class InformedTrader(Taker):
+    '''
+    InformedTrader generates quotes (dicts) based upon a fixed direction
+    
+    Subclass of Taker
+    Public attributes: trader_type, quote_collector (from ZITrader)
+    Public methods: process_signal
+    '''
+    
+    def __init__(self, name, maxq, run_steps, informed_trades, runlength):
+        ZITrader.__init__(self, name, maxq)
+        self.trader_type = 'InformedTrader'
+        self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
+        self._side = np.random.choice(['buy', 'sell'])
+        self._price = 0 if self._side == 'sell' else 2000000
+        
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2})'.format(self._trader_id, self._quantity, self.trader_type)
+        
+    def process_signal(self, time):
+        '''InformedTrader buys or sells pre-specified attribute.'''
+        q = self._make_add_quote(time, self._quantity, self._side, self._price)
+        self.quote_collector.append(q)
+        
+    def make_delta_i(self, run_steps, informed_trades, runlength):
+        t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
+        if runlength > 1:
+            stack1 = t_delta_i
+            s_length = len(t_delta_i)
+            for i in range(1, runlength):
+                temp = t_delta_i+i
+                stack2 = np.unique(np.hstack((stack1, temp)))
+                repeats = (i+1)*s_length - len(set(stack2))
+                new_choice_set = set(range(run_steps)) - set(stack2)
+                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
+                stack1 = np.hstack((stack2, extras))
+            t_delta_i = stack1
+        return np.sort(t_delta_i)
+
+    
