@@ -202,6 +202,86 @@ class InformedTrader(Taker):
                 extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
                 stack1 = np.hstack((stack2, extras))
             t_delta_i = stack1
-        return np.sort(t_delta_i)
+        return set(t_delta_i)
+    
+
+class PennyJumper(ZITrader):
+    '''
+    PennyJumper jumps in front of best quotes when possible
+    
+    Subclass of ZITrader
+    Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector
+    Public methods: confirm_trade_local (from ZITrader)
+    '''
+    
+    def __init__(self, name, maxq, mpi):
+        '''
+        Initialize PennyJumper
+        
+        cancel_collector is a public container for carrying cancel messages to the exchange
+        PennyJumper tracks private _ask_quote and _bid_quote to determine whether it is alone
+        at the inside or not.
+        '''
+        ZITrader.__init__(self, name, maxq)
+        self.trader_type = 'PennyJumper'
+        self._mpi = mpi
+        self.cancel_collector = []
+        self._ask_quote = None
+        self._bid_quote = None
+        
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2}, {3})'.format(self._trader_id, self._quantity, self._mpi, self.trader_type)
+    
+    def _make_cancel_quote(self, q, time):
+        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
+                'side': q['side'], 'price': q['price']}
+
+    def confirm_trade_local(self, confirm):
+        '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
+        if confirm['side'] == 'buy':
+            self._bid_quote = None
+        else:
+            self._ask_quote = None
+            
+    def process_signal(self, time, qsignal, q_taker):
+        '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
+        point inside the current quotes.
+        '''
+        self.quote_collector.clear()
+        self.cancel_collector.clear()
+        if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
+            # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
+            if random.uniform(0,1) < q_taker:
+                if self._bid_quote: # check if not alone at the bid
+                    if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
+                        self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
+                        self._bid_quote = None
+                if not self._bid_quote:
+                    price = qsignal['best_bid'] + self._mpi
+                    side = 'buy'
+                    q = self._make_add_quote(time, self._quantity, side, price)
+                    self.quote_collector.append(q)
+                    self._bid_quote = q
+            else:
+                if self._ask_quote: # check if not alone at the ask
+                    if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
+                        self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
+                        self._ask_quote = None
+                if not self._ask_quote:
+                    price = qsignal['best_ask'] - self._mpi
+                    side = 'sell'
+                    q = self._make_add_quote(time, self._quantity, side, price)
+                    self.quote_collector.append(q)
+                    self._ask_quote = q
+        else: # spread = mpi
+            if self._bid_quote: # check if not alone at the bid
+                if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
+                    self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
+                    self._bid_quote = None
+            if self._ask_quote: # check if not alone at the ask
+                if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
+                    self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
+                    self._ask_quote = None
+            
 
     
