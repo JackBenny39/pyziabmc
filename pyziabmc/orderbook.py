@@ -73,7 +73,7 @@ class Orderbook(object):
         else:
             bisect.insort(book_prices, order['price'])
             book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'order_ids': [order['order_id']],
-                                     'orders': OrderedDict([(order['order_id'],  book_order)])}
+                                    'orders': OrderedDict([(order['order_id'],  book_order)])}
             
     def _remove_order(self, order_side, order_price, order_id):
         '''Pop the order_id; if  order_id exists, updates the book.'''
