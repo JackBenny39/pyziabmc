@@ -65,15 +65,15 @@ class Orderbook(object):
         else:
             book_prices = self._ask_book_prices
             book = self._ask_book 
-        if order['price'] not in book_prices:
-            bisect.insort(book_prices, order['price'])
-            book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'order_ids': [order['order_id']],
-                                     'orders': OrderedDict([(order['order_id'],  book_order)])}
-        else:
+        if order['price'] in book_prices:
             book[order['price']]['num_orders'] += 1
             book[order['price']]['size'] += order['quantity']
             book[order['price']]['order_ids'].append(order['order_id'])
             book[order['price']]['orders'][order['order_id']] =  book_order
+        else:
+            bisect.insort(book_prices, order['price'])
+            book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'order_ids': [order['order_id']],
+                                     'orders': OrderedDict([(order['order_id'],  book_order)])}
             
     def _remove_order(self, order_side, order_price, order_id):
         '''Pop the order_id; if  order_id exists, updates the book.'''
