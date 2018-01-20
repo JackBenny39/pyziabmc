@@ -373,7 +373,6 @@ class MarketMaker5(MarketMaker):
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
         ''' 
-        # make pricing explicit for now. Logic scales for other mpi and quote ranges.
         self.quote_collector.clear()
         if random.uniform(0,1) < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 5

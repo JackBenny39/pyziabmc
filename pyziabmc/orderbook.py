@@ -178,7 +178,7 @@ class Orderbook(object):
                 else:
                     print('Ask Market Collapse with order {0}'.format(order))
                     break
-        else: #order['side'] =='sell'
+        else:
             book_prices = self._bid_book_prices
             book = self._bid_book
             remainder = order['quantity']

@@ -203,7 +203,7 @@ class Runner(object):
     def run_mcsPJ(self, prime1):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
-            for row in self.make_both(current_time):
+            for row in self.makeAll(current_time):
                 if row[0].trader_type == 'Provider':
                     if row[1]:
                         row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
