@@ -1,6 +1,8 @@
 import random
+import time
 
 import numpy as np
+import pandas as pd
 
 import pyziabmc.trader as trader
 
@@ -9,7 +11,7 @@ from pyziabmc.orderbook import Orderbook
 
 class Runner(object):
     
-    def __init__(self, h5filename='test.h5', mpi=5, prime1=20, run_steps=100000, **kwargs):
+    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, **kwargs):
         self.exchange = Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
@@ -39,10 +41,13 @@ class Runner(object):
         self.seedOrderbook()
         if self.provider:
             self.makeSetup(prime1, kwargs['Lambda0'])
-        #if self.pj:
-            #self.runMcsPJ(prime1)
-        #else:
-            #self.runMcs(prime1)
+        if self.pj:
+            self.runMcsPJ(prime1)
+        else:
+            self.runMcs(prime1)
+        self.exchange.trade_book_to_h5(h5filename)
+        self.qTakeToh5()
+        self.mmProfitabilityToh5()
                   
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
         providers_list = ['p%i' % i for i in range(numProviders)]
@@ -151,6 +156,17 @@ class Runner(object):
         np.random.shuffle(all_traders)
         return all_traders
     
+    def doCancels(self, trader):
+        for c in trader.cancel_collector:
+            self.exchange.process_order(c)
+            if self.exchange.confirm_modify_collector:
+                trader.confirm_cancel_local(self.exchange.confirm_modify_collector[0])
+                    
+    def confirmTrades(self):
+        for c in self.exchange.confirm_trade_collector:
+            contra_side = self.liquidity_providers[c['trader']]
+            contra_side.confirm_trade_local(c)
+    
     def runMcs(self, prime1):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
@@ -161,11 +177,8 @@ class Runner(object):
                         self.exchange.process_order(row[0].quote_collector[-1])
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     row[0].bulk_cancel(current_time)
-                    if row[0].cancel_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in row[0].cancel_collector:
-                            self.exchange.process_order(c)
-                            if self.exchange.confirm_modify_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                                row[0].confirm_cancel_local(self.exchange.confirm_modify_collector[0])
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif row[0].trader_type == 'MarketMaker':
                     if row[1]:
@@ -174,33 +187,26 @@ class Runner(object):
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     row[0].bulk_cancel(current_time)
-                    if row[0].cancel_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in row[0].cancel_collector:
-                            self.exchange.process_order(c)
-                            if self.exchange.confirm_modify_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                                row[0].confirm_cancel_local(self.exchange.confirm_modify_collector[0])
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif row[0].trader_type == 'InformedTrader':
                     row[0].process_signal(current_time)
                     self.exchange.process_order(row[0].quote_collector[-1])
-                    if self.exchange.traded: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in self.exchange.confirm_trade_collector:
-                            trader = self.liquidity_providers[c['trader']]
-                            trader.confirm_trade_local(c)
+                    if self.exchange.traded:
+                        self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
                     row[0].process_signal(current_time, self.q_take[current_time])
                     self.exchange.process_order(row[0].quote_collector[-1])
-                    if self.exchange.traded: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in self.exchange.confirm_trade_collector:
-                            trader = self.liquidity_providers[c['trader']]
-                            trader.confirm_trade_local(c)
+                    if self.exchange.traded:
+                        self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
             if not np.remainder(current_time, 2000):
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 
-    def run_mcsPJ(self, prime1):
+    def runMcsPJ(self, prime1):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
@@ -210,11 +216,8 @@ class Runner(object):
                         self.exchange.process_order(row[0].quote_collector[-1])
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     row[0].bulk_cancel(current_time)
-                    if row[0].cancel_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in row[0].cancel_collector:
-                            self.exchange.process_order(c)
-                            if self.exchange.confirm_modify_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                                row[0].confirm_cancel_local(self.exchange.confirm_modify_collector[0])
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif row[0].trader_type == 'MarketMaker':
                     if row[1]:
@@ -223,27 +226,20 @@ class Runner(object):
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     row[0].bulk_cancel(current_time)
-                    if row[0].cancel_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in row[0].cancel_collector:
-                            self.exchange.process_order(c)
-                            if self.exchange.confirm_modify_collector: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                                row[0].confirm_cancel_local(self.exchange.confirm_modify_collector[0])
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif row[0].trader_type == 'InformedTrader':
                     row[0].process_signal(current_time)
                     self.exchange.process_order(row[0].quote_collector[-1])
-                    if self.exchange.traded: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in self.exchange.confirm_trade_collector:
-                            trader = self.trader_dict[c['trader']]
-                            trader.confirm_trade_local(c)
+                    if self.exchange.traded:
+                        self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
                     row[0].process_signal(current_time, self.q_take[current_time])
                     self.exchange.process_order(row[0].quote_collector[-1])
-                    if self.exchange.traded: # <---- Check permission versus forgiveness here and elsewhere - move to methods?
-                        for c in self.exchange.confirm_trade_collector:
-                            trader = self.trader_dict[c['trader']]
-                            trader.confirm_trade_local(c)
+                    if self.exchange.traded:
+                        self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 if random.uniform(0,1) < self.alpha_pj:
                     self.pennyjumper.process_signal(current_time, top_of_book, self.q_take[current_time])
@@ -257,16 +253,37 @@ class Runner(object):
             if not np.remainder(current_time, 2000):
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
+                
+    def qTakeToh5(self):
+        temp_df = pd.DataFrame({'qt_take': self.q_take, 'lambda_t': self.lambda_t})
+        temp_df.to_hdf(self.h5filename, 'qtl', append=True, format='table', complevel=5, complib='blosc')
+        
+    def mmProfitabilityToh5(self):
+        for m in self.marketmakers:
+            temp_df = pd.DataFrame(m.cash_flow_collector)
+            temp_df.to_hdf(self.h5filename, 'mmp', append=True, format='table', complevel=5, complib='blosc')
     
     
 if __name__ == '__main__':
     
+    j = 1
+    random.seed(j)
+    np.random.seed(j)
+    
+    start = time.time()
+    print(start)
+    
+    h5_root = 'mm1_nt0_1'
+    h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
+    h5_file = '%s%s.h5' % (h5dir, h5_root)
+    
     settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
-                'Taker': False, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
+                'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
                 'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
                 'PennyJumper': False, 'AlphaPJ': 0.05,
                 'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
                 'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
         
-    market1 = Runner(**settings)
-    print(market1.provider_array, '\n', market1.t_delta_p, '\n', market1.marketmakers, '\n', market1.t_delta_m)
+    market1 = Runner(h5filename=h5_file, **settings)
+
+    print('Run 2: %.2f minutes' % ((time.time() - start)/60))
