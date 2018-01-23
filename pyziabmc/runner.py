@@ -9,7 +9,7 @@ from pyziabmc.orderbook import Orderbook
 
 class Runner(object):
     
-    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=22, **kwargs):
+    def __init__(self, h5filename='test.h5', mpi=5, prime1=20, run_steps=100000, **kwargs):
         self.exchange = Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
@@ -24,7 +24,7 @@ class Runner(object):
             self.t_delta_t, self.taker_array = self.buildTakers(kwargs['numTakers'], kwargs['takerMaxQ'], kwargs['tMu'])
         self.informed = kwargs.pop('InformedTrader')
         if self.informed:
-            informedTrades = kwargs['iMu']*np.sum(self.run_steps/self.t_delta_t) if kwargs['Taker'] else 1/kwargs['iMu']
+            informedTrades = np.int(kwargs['iMu']*np.sum(self.run_steps/self.t_delta_t) if self.taker else 1/kwargs['iMu'])
             self.informed_trader = self.buildInformedTrader(kwargs['informedMaxQ'], kwargs['informedRunLength'], informedTrades)
         self.pj = kwargs.pop('PennyJumper')
         if self.pj:
@@ -39,15 +39,15 @@ class Runner(object):
         self.seedOrderbook()
         if self.provider:
             self.makeSetup(prime1, kwargs['Lambda0'])
-        if self.pj:
-            self.runMcsPJ(prime1)
-        else:
-            self.runMcs(prime1)
+        #if self.pj:
+            #self.runMcsPJ(prime1)
+        #else:
+            #self.runMcs(prime1)
                   
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
         providers_list = ['p%i' % i for i in range(numProviders)]
         if self.mpi==1:
-            providers = np.array([trader.Provider(p,providerMaxQ,pDelta,pAlpha) for p in providers_list])
+            providers = np.array([trader.Provider(p,providerMaxQ,pDelta,alpha=pAlpha) for p in providers_list])
         else:
             providers = np.array([trader.Provider5(p,providerMaxQ,pDelta,pAlpha) for p in providers_list])
         t_delta_p = np.array([p.delta_p for p in providers])
@@ -262,11 +262,11 @@ class Runner(object):
 if __name__ == '__main__':
     
     settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
-                'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
+                'Taker': False, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
                 'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
                 'PennyJumper': False, 'AlphaPJ': 0.05,
                 'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
                 'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
         
     market1 = Runner(**settings)
-    print(market1.exchange.report_top_of_book(21))
+    print(market1.provider_array, '\n', market1.t_delta_p, '\n', market1.marketmakers, '\n', market1.t_delta_m)

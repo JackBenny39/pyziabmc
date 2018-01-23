@@ -49,16 +49,15 @@ class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    #def __init__(self, name, maxq, delta, alpha):
-    def __init__(self, name, maxq, delta, *args):
+    def __init__(self, name, maxq, delta, alpha=None):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Provider'
         self._delta = delta
-        if args:
-            self.delta_p = math.floor(random.expovariate(args[0]) + 1)*self._quantity
+        if alpha is not None:
+            self.delta_p = math.floor(random.expovariate(alpha) + 1)*self._quantity
         self.local_book = {}
         self.cancel_collector = []
                 
@@ -125,7 +124,7 @@ class Provider5(Provider):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
-        Provider.__init__(self, name, maxq, delta, alpha)
+        Provider.__init__(self, name, maxq, delta, alpha=alpha)
 
     def _choose_price_from_exp(self, side, inside_price, lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -136,154 +135,6 @@ class Provider5(Provider):
             price = np.int(5*np.ceil((inside_price+1+plug)/5))
         return price
     
-    
-class Taker(ZITrader):
-    '''
-    Taker generates quotes (dicts) based on take probability.
-        
-    Subclass of ZITrader
-    Public attributes: trader_type, quote_collector (from ZITrader)
-    Public methods: process_signal 
-    '''
-
-    def __init__(self, name, maxq, mu):
-        ZITrader.__init__(self, name, maxq)
-        self.trader_type = 'Taker'
-        self.delta_t = math.floor(random.expovariate(mu) + 1)*self._quantity
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
-        
-    def process_signal(self, time, q_taker):
-        '''Taker buys or sells with 50% probability.'''
-        self.quote_collector.clear()
-        if random.uniform(0,1) < q_taker: # q_taker > 0.5 implies greater probability of a buy order
-            price = 2000000 # agent buys at max price (or better)
-            side = 'buy'
-        else:
-            price = 0 # agent sells at min price (or better)
-            side = 'sell'
-        q = self._make_add_quote(time, side, price)
-        self.quote_collector.append(q)
-        
-        
-class InformedTrader(Taker):
-    '''
-    InformedTrader generates quotes (dicts) based upon a fixed direction
-    
-    Subclass of Taker
-    Public attributes: trader_type, quote_collector (from ZITrader)
-    Public methods: process_signal
-    '''
-    
-    def __init__(self, name, maxq, run_steps, informed_trades, runlength):
-        ZITrader.__init__(self, name, maxq)
-        self.trader_type = 'InformedTrader'
-        self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
-        self._side = np.random.choice(['buy', 'sell'])
-        self._price = 0 if self._side == 'sell' else 2000000
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
-        
-    def process_signal(self, time):
-        '''InformedTrader buys or sells pre-specified attribute.'''
-        q = self._make_add_quote(time, self._side, self._price)
-        self.quote_collector.append(q)
-        
-    def make_delta_i(self, run_steps, informed_trades, runlength):
-        t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
-        if runlength > 1:
-            stack1 = t_delta_i
-            s_length = len(t_delta_i)
-            for i in range(1, runlength):
-                temp = t_delta_i+i
-                stack2 = np.unique(np.hstack((stack1, temp)))
-                repeats = (i+1)*s_length - len(set(stack2))
-                new_choice_set = set(range(run_steps)) - set(stack2)
-                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
-                stack1 = np.hstack((stack2, extras))
-            t_delta_i = stack1
-        return set(t_delta_i)
-    
-
-class PennyJumper(ZITrader):
-    '''
-    PennyJumper jumps in front of best quotes when possible
-    
-    Subclass of ZITrader
-    Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector
-    Public methods: confirm_trade_local (from ZITrader)
-    '''
-    
-    def __init__(self, name, maxq, mpi):
-        '''
-        Initialize PennyJumper
-        
-        cancel_collector is a public container for carrying cancel messages to the exchange
-        PennyJumper tracks private _ask_quote and _bid_quote to determine whether it is alone
-        at the inside or not.
-        '''
-        ZITrader.__init__(self, name, maxq)
-        self.trader_type = 'PennyJumper'
-        self._mpi = mpi
-        self.cancel_collector = []
-        self._ask_quote = None
-        self._bid_quote = None
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self._mpi, self.trader_type)
-    
-    def _make_cancel_quote(self, q, time):
-        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
-                'side': q['side'], 'price': q['price']}
-
-    def confirm_trade_local(self, confirm):
-        '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
-        if confirm['side'] == 'buy':
-            self._bid_quote = None
-        else:
-            self._ask_quote = None
-            
-    def process_signal(self, time, qsignal, q_taker):
-        '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
-        point inside the current quotes.
-        '''
-        self.quote_collector.clear()
-        self.cancel_collector.clear()
-        if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
-            # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
-            if random.uniform(0,1) < q_taker:
-                if self._bid_quote: # check if not alone at the bid
-                    if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
-                        self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
-                        self._bid_quote = None
-                if not self._bid_quote:
-                    price = qsignal['best_bid'] + self._mpi
-                    side = 'buy'
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._bid_quote = q
-            else:
-                if self._ask_quote: # check if not alone at the ask
-                    if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
-                        self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
-                        self._ask_quote = None
-                if not self._ask_quote:
-                    price = qsignal['best_ask'] - self._mpi
-                    side = 'sell'
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._ask_quote = q
-        else: # spread = mpi
-            if self._bid_quote: # check if not alone at the bid
-                if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
-                    self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
-                    self._bid_quote = None
-            if self._ask_quote: # check if not alone at the ask
-                if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
-                    self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
-                    self._ask_quote = None
             
 class MarketMaker(Provider):
     '''
@@ -386,5 +237,153 @@ class MarketMaker5(MarketMaker):
             q = self._make_add_quote(time, side, price)
             self.local_book[q['order_id']] = q
             self.quote_collector.append(q)
+            
 
+class PennyJumper(ZITrader):
+    '''
+    PennyJumper jumps in front of best quotes when possible
+    
+    Subclass of ZITrader
+    Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector
+    Public methods: confirm_trade_local (from ZITrader)
+    '''
+    
+    def __init__(self, name, maxq, mpi):
+        '''
+        Initialize PennyJumper
+        
+        cancel_collector is a public container for carrying cancel messages to the exchange
+        PennyJumper tracks private _ask_quote and _bid_quote to determine whether it is alone
+        at the inside or not.
+        '''
+        ZITrader.__init__(self, name, maxq)
+        self.trader_type = 'PennyJumper'
+        self._mpi = mpi
+        self.cancel_collector = []
+        self._ask_quote = None
+        self._bid_quote = None
+        
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self._mpi, self.trader_type)
+    
+    def _make_cancel_quote(self, q, time):
+        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
+                'side': q['side'], 'price': q['price']}
+
+    def confirm_trade_local(self, confirm):
+        '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
+        if confirm['side'] == 'buy':
+            self._bid_quote = None
+        else:
+            self._ask_quote = None
+            
+    def process_signal(self, time, qsignal, q_taker):
+        '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
+        point inside the current quotes.
+        '''
+        self.quote_collector.clear()
+        self.cancel_collector.clear()
+        if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
+            # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
+            if random.uniform(0,1) < q_taker:
+                if self._bid_quote: # check if not alone at the bid
+                    if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
+                        self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
+                        self._bid_quote = None
+                if not self._bid_quote:
+                    price = qsignal['best_bid'] + self._mpi
+                    side = 'buy'
+                    q = self._make_add_quote(time, side, price)
+                    self.quote_collector.append(q)
+                    self._bid_quote = q
+            else:
+                if self._ask_quote: # check if not alone at the ask
+                    if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
+                        self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
+                        self._ask_quote = None
+                if not self._ask_quote:
+                    price = qsignal['best_ask'] - self._mpi
+                    side = 'sell'
+                    q = self._make_add_quote(time, side, price)
+                    self.quote_collector.append(q)
+                    self._ask_quote = q
+        else: # spread = mpi
+            if self._bid_quote: # check if not alone at the bid
+                if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
+                    self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
+                    self._bid_quote = None
+            if self._ask_quote: # check if not alone at the ask
+                if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
+                    self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
+                    self._ask_quote = None
+                              
+
+class Taker(ZITrader):
+    '''
+    Taker generates quotes (dicts) based on take probability.
+        
+    Subclass of ZITrader
+    Public attributes: trader_type, quote_collector (from ZITrader)
+    Public methods: process_signal 
+    '''
+
+    def __init__(self, name, maxq, mu):
+        ZITrader.__init__(self, name, maxq)
+        self.trader_type = 'Taker'
+        self.delta_t = math.floor(random.expovariate(mu) + 1)*self._quantity
+        
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
+        
+    def process_signal(self, time, q_taker):
+        '''Taker buys or sells with 50% probability.'''
+        self.quote_collector.clear()
+        if random.uniform(0,1) < q_taker: # q_taker > 0.5 implies greater probability of a buy order
+            price = 2000000 # agent buys at max price (or better)
+            side = 'buy'
+        else:
+            price = 0 # agent sells at min price (or better)
+            side = 'sell'
+        q = self._make_add_quote(time, side, price)
+        self.quote_collector.append(q)
+        
+        
+class InformedTrader(ZITrader):
+    '''
+    InformedTrader generates quotes (dicts) based upon a fixed direction
+    
+    Subclass of ZITrader
+    Public attributes: trader_type, quote_collector (from ZITrader)
+    Public methods: process_signal
+    '''
+    
+    def __init__(self, name, maxq, run_steps, informed_trades, runlength):
+        ZITrader.__init__(self, name, maxq)
+        self.trader_type = 'InformedTrader'
+        self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
+        self._side = np.random.choice(['buy', 'sell'])
+        self._price = 0 if self._side == 'sell' else 2000000
+        
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
+        
+    def process_signal(self, time):
+        '''InformedTrader buys or sells pre-specified attribute.'''
+        q = self._make_add_quote(time, self._side, self._price)
+        self.quote_collector.append(q)
+        
+    def make_delta_i(self, run_steps, informed_trades, runlength):
+        t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
+        if runlength > 1:
+            stack1 = t_delta_i
+            s_length = len(t_delta_i)
+            for i in range(1, runlength):
+                temp = t_delta_i+i
+                stack2 = np.unique(np.hstack((stack1, temp)))
+                repeats = (i+1)*s_length - len(set(stack2))
+                new_choice_set = set(range(run_steps)) - set(stack2)
+                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
+                stack1 = np.hstack((stack2, extras))
+            t_delta_i = stack1
+        return set(t_delta_i)
     
