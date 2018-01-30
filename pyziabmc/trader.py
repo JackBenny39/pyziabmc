@@ -181,7 +181,7 @@ class MarketMaker(Provider):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
             
-    def process_signal(self, time, qsignal, q_provider):
+    def process_signal(self, time, qsignal, q_provider, *args):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -219,7 +219,7 @@ class MarketMaker5(MarketMaker):
         self._p5ask = [1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30]
         self._p5bid = [1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20]
                
-    def process_signal(self, time, qsignal, q_provider):
+    def process_signal(self, time, qsignal, q_provider, *args):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -367,7 +367,7 @@ class InformedTrader(ZITrader):
     def __repr__(self):
         return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
         
-    def process_signal(self, time):
+    def process_signal(self, time, *args):
         '''InformedTrader buys or sells pre-specified attribute.'''
         q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(q)

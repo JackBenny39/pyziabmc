@@ -16,11 +16,13 @@ class Runner(object):
         self.h5filename = h5filename
         self.mpi = mpi
         self.run_steps = run_steps + 1
+        self.providers = []
         self.provider = kwargs.pop('Provider')
         if self.provider:
             self.t_delta_p, self.provider_array = self.buildProviders(kwargs['numProviders'], kwargs['providerMaxQ'],
                                                                       kwargs['pAlpha'], kwargs['pDelta'])
             self.q_provide = kwargs['qProvide']
+            self.providers.append('Provider')
         self.taker = kwargs.pop('Taker')
         if self.taker:
             self.t_delta_t, self.taker_array = self.buildTakers(kwargs['numTakers'], kwargs['takerMaxQ'], kwargs['tMu'])
@@ -36,6 +38,7 @@ class Runner(object):
         if self.marketmaker:
             self.t_delta_m, self.marketmakers = self.buildMarketMakers(kwargs['MMMaxQ'], kwargs['NumMMs'], kwargs['MMQuotes'], 
                                                                        kwargs['MMQuoteRange'], kwargs['MMDelta'])
+            self.providers.append('MarketMaker')
         self.q_take, self.lambda_t = self.makeQTake(kwargs['QTake'], kwargs['Lambda0'], kwargs['WhiteNoise'], kwargs['CLambda'])
         self.liquidity_providers = self.makeLiquidityProviders()
         self.seedOrderbook()
@@ -171,30 +174,15 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
-                if row[0].trader_type == 'Provider':
+                if row[0].trader_type in self.providers:
                     if row[1]:
                         row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
-                        self.exchange.process_order(row[0].quote_collector[-1])
-                        top_of_book = self.exchange.report_top_of_book(current_time)
-                    row[0].bulk_cancel(current_time)
-                    if row[0].cancel_collector:
-                        self.doCancels(row[0])
-                        top_of_book = self.exchange.report_top_of_book(current_time)
-                elif row[0].trader_type == 'MarketMaker':
-                    if row[1]:
-                        row[0].process_signal(current_time, top_of_book, self.q_provide)
                         for q in row[0].quote_collector:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     row[0].bulk_cancel(current_time)
                     if row[0].cancel_collector:
                         self.doCancels(row[0])
-                        top_of_book = self.exchange.report_top_of_book(current_time)
-                elif row[0].trader_type == 'InformedTrader':
-                    row[0].process_signal(current_time)
-                    self.exchange.process_order(row[0].quote_collector[-1])
-                    if self.exchange.traded:
-                        self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
                     row[0].process_signal(current_time, self.q_take[current_time])
@@ -210,30 +198,15 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
-                if row[0].trader_type == 'Provider':
+                if row[0].trader_type in self.providers:
                     if row[1]:
                         row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
-                        self.exchange.process_order(row[0].quote_collector[-1])
-                        top_of_book = self.exchange.report_top_of_book(current_time)
-                    row[0].bulk_cancel(current_time)
-                    if row[0].cancel_collector:
-                        self.doCancels(row[0])
-                        top_of_book = self.exchange.report_top_of_book(current_time)
-                elif row[0].trader_type == 'MarketMaker':
-                    if row[1]:
-                        row[0].process_signal(current_time, top_of_book, self.q_provide)
                         for q in row[0].quote_collector:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     row[0].bulk_cancel(current_time)
                     if row[0].cancel_collector:
                         self.doCancels(row[0])
-                        top_of_book = self.exchange.report_top_of_book(current_time)
-                elif row[0].trader_type == 'InformedTrader':
-                    row[0].process_signal(current_time)
-                    self.exchange.process_order(row[0].quote_collector[-1])
-                    if self.exchange.traded:
-                        self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
                     row[0].process_signal(current_time, self.q_take[current_time])
@@ -273,14 +246,14 @@ if __name__ == '__main__':
     start = time.time()
     print(start)
     
-    h5_root = 'mm1_nt0_1'
+    h5_root = 'mm1_nt0_pj1'
     h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
     h5_file = '%s%s.h5' % (h5dir, h5_root)
     
     settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
                 'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
                 'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
-                'PennyJumper': False, 'AlphaPJ': 0.05,
+                'PennyJumper': True, 'AlphaPJ': 0.05,
                 'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
                 'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
         
