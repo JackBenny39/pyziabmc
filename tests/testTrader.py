@@ -61,6 +61,7 @@ class TestTrader(unittest.TestCase):
     def test_repr_Provider(self):
         self.assertEqual('Trader(p1, 1, Provider)', '{0}'.format(self.p1))
         self.assertEqual('Trader(p5, 1, Provider)', '{0}'.format(self.p5))
+        self.assertTrue(self.p1.delta_p)
               
     def test_make_cancel_quote_Provider(self):
         q = self.p1._make_cancel_quote(self.q1, 2)
@@ -175,6 +176,8 @@ class TestTrader(unittest.TestCase):
     def test_repr_MM(self):
         self.assertEqual('Trader(m1, 1, MarketMaker, 12)', '{0}'.format(self.m1))
         self.assertEqual('Trader(m5, 1, MarketMaker, 12)', '{0}'.format(self.m5))
+        self.assertEqual(self.m1.delta_p, self.m1._quantity)
+        self.assertEqual(self.m5.delta_p, self.m5._quantity)
         
     def test_confirm_trade_local_MM(self):
         '''
