@@ -24,8 +24,8 @@ class Orderbook(object):
         order_history is a list of all incoming orders (dicts) in the order received
         _bid_book_prices and _ask_book_prices are linked (sorted) lists of bid and ask prices
         which serve as pointers to:
-        _bid_book and _ask_book: dicts of current order book state and OrderedDicts of orders
-        the OrderedDicts maintain time priority for each order at a given price.
+        _bid_book and _ask_book: dicts of current order book state and dicts of orders
+        the oder id lists maintain time priority for each order at a given price.
         confirm_modify_collector and confirm_trade_collector are lists that carry information (dicts) from the
         order processor and/or matching engine to the traders
         trade_book is a list if trades in sequence
