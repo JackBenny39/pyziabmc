@@ -5,6 +5,7 @@ cdef class ZITrader:
     
     cdef int _make_q(self, int maxq)
     cdef dict _make_add_quote(self, int time, str side, int price)
+ 
     
 cdef class Provider(ZITrader):
     cdef float _delta
@@ -23,3 +24,16 @@ cdef class Provider(ZITrader):
 cdef class Provider5(Provider):
 
     cdef int _choose_price_from_exp(self, str buysell, int inside_price, float lambda_t)
+    
+    
+cdef class MarketMaker(Provider):
+    cdef int _num_quotes, _quote_range, _position, _cash_flow
+    cdef public list cash_flow_collector
+    
+    cpdef confirm_trade_local(self, dict confirm)
+    cdef void _cumulate_cashflow(self, int timestamp)
+    cpdef process_signal(self, int time, dict qsignal, float q_provider, int a)
+
+
+
+

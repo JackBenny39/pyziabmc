@@ -1,3 +1,4 @@
+from pyziabmc.orderbookc import price
 cimport cython
 import random
 
@@ -146,6 +147,76 @@ cdef class Provider5(Provider):
             return np.int(5*np.floor((inside_price-1-plug)/5))
         else:
             return np.int(5*np.ceil((inside_price+1+plug)/5))
+        
+        
+cdef class MarketMaker(Provider):
+    '''
+    MarketMaker generates a series of quotes near the inside (dicts) based on make probability.
+    
+    Subclass of Provider
+    Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector (from Provider),
+    cash_flow_collector
+    Public methods: confirm_cancel_local (from Provider), confirm_trade_local, process_signal 
+    '''
+
+    def __init__(self, str name, int maxq, float delta, int num_quotes, int quote_range):
+        '''_num_quotes and _quote_range determine the depth of MM quoting;
+        _position and _cashflow are stored MM metrics
+        '''
+        Provider.__init__(self, name, maxq, delta)
+        self.trader_type = 'MarketMaker'
+        self._num_quotes = num_quotes
+        self._quote_range = quote_range
+        self._position = 0
+        self._cash_flow = 0
+        self.delta_p = self._quantity
+        self.cash_flow_collector = []
+                      
+    def __repr__(self):
+        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self.trader_type, self._num_quotes)
+    
+    cpdef confirm_trade_local(self, dict confirm):
+        '''Modify _cash_flow and _position; update the local_book'''
+        cdef dict to_modify
+        if confirm['side'] == 'buy':
+            self._cash_flow -= confirm['price']*confirm['quantity']
+            self._position += confirm['quantity']
+        else:
+            self._cash_flow += confirm['price']*confirm['quantity']
+            self._position -= confirm['quantity']
+        to_modify = self.local_book.get(confirm['order_id'])
+        if confirm['quantity'] == to_modify['quantity']:
+            self.confirm_cancel_local(to_modify)
+        else:
+            self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
+        self._cumulate_cashflow(confirm['timestamp'])
+        
+    cdef void _cumulate_cashflow(self, int timestamp):
+        self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
+                                         'position': self._position})
+        
+    cpdef process_signal(self, int time, dict qsignal, float q_provider, int a):
+        '''
+        MM chooses prices from a grid determined by the best prevailing prices.
+        MM never joins the best price if it has size=1.
+        ''' 
+        cdef int max_bid_price, min_ask_price, price
+        cdef np.ndarray[np.int_t, ndim=1, negative_indices=False, mode='c'] prices
+        str side
+        cdef dict q
+        self.quote_collector.clear()
+        if random.uniform(0,1) < q_provider:
+            max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 1
+            prices = np.random.choice(range(max_bid_price-self._quote_range+1, max_bid_price+1), size=self._num_quotes)
+            side = 'buy'
+        else:
+            min_ask_price = qsignal['best_ask'] if qsignal['ask_size'] > 1 else qsignal['best_ask'] + 1
+            prices = np.random.choice(range(min_ask_price, min_ask_price+self._quote_range), size=self._num_quotes)
+            side = 'sell'
+        for price in prices:
+            q = self._make_add_quote(time, side, price)
+            self.local_book[q['order_id']] = q
+            self.quote_collector.append(q)
 
 
 
