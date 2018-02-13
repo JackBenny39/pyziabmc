@@ -92,7 +92,8 @@ class Provider(ZITrader):
     def process_signal(self, time, qsignal, q_provider, lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
         self.quote_collector.clear()
-        if np.random.uniform(0,1) < q_provider:
+        #if np.random.uniform(0,1) < q_provider:
+        if random.uniform(0,1) < q_provider:
             price = self._choose_price_from_exp('bid', qsignal['best_ask'], lambda_t)
             side = 'buy'
         else:

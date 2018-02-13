@@ -1,0 +1,10 @@
+from distutils.core import setup
+from Cython.Build import cythonize
+import numpy
+
+setup(name='orderbookc',
+      packages=['pyziabmc'],
+      ext_modules=cythonize('**/*.pyx', compiler_directives={'language_level': 3}, 
+                            language='c++'),
+      include_dirs=[numpy.get_include()],
+      )
