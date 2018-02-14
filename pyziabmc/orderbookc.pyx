@@ -1,3 +1,5 @@
+# distutils: language = c++
+
 import bisect
 import pandas as pd
 

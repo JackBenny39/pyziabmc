@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 
-import pyziabmc.trader as trader
+import pyziabmc.traderc as trader
 
 from pyziabmc.orderbookc import Orderbook
 
@@ -246,7 +246,7 @@ if __name__ == '__main__':
     start = time.time()
     print(start)
     
-    h5_root = 'mm1_cython_obru'
+    h5_root = 'mm1_cython_obtr'
     h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
     h5_file = '%s%s.h5' % (h5dir, h5_root)
     
