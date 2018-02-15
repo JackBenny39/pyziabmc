@@ -239,14 +239,14 @@ class Runner(object):
     
 if __name__ == '__main__':
     
-    j = 1
+    j = 5
     random.seed(j)
     np.random.seed(j)
     
     start = time.time()
     print(start)
     
-    h5_root = 'mm1_python_ru'
+    h5_root = 'mm1_python_all_%d' % j
     h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
     h5_file = '%s%s.h5' % (h5dir, h5_root)
     

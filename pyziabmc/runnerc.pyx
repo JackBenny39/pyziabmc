@@ -1,17 +1,35 @@
+# distutils: language = c++
+
 import random
 import time
 
+cimport cython
+
 import numpy as np
+cimport numpy as np
 import pandas as pd
 
-import pyziabmc.traderc as trader
-import pyziabmc.orderbookc as orderbook
+cimport pyziabmc.traderc as trader
+cimport pyziabmc.orderbookc as orderbookc
 
 
-class Runner(object):
+cdef class Runner(object):
+    
+    cdef orderbookc.Orderbook exchange
+    cdef trader.InformedTrader informed_trader
+    cdef trader.PennyJumper pennyjumper
+    
+    cdef str h5filename
+    cdef int mpi, run_steps, informedTrades
+    cdef list providers
+    cdef bint provider, taker, informed, pj, marketmaker
+    cdef np.ndarray t_delta_p, provider_array, t_delta_t, taker_array, t_delta_m, marketmakers, q_take, lambda_t
+    cdef float q_provide, alpha_pj
+    cdef dict liquidity_providers
+    
     
     def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, **kwargs):
-        self.exchange = orderbook.Orderbook()
+        self.exchange = orderbookc.Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
         self.run_steps = run_steps + 1
@@ -50,11 +68,11 @@ class Runner(object):
         self.exchange.trade_book_to_h5(h5filename)
         self.qTakeToh5()
         self.mmProfitabilityToh5()
-                  
+        
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
         providers_list = ['p%i' % i for i in range(numProviders)]
         if self.mpi==1:
-            providers = np.array([trader.Provider(p,providerMaxQ,pDelta,alpha=pAlpha) for p in providers_list])
+            providers = np.array([trader.Provider(p,providerMaxQ,pDelta,pAlpha) for p in providers_list])
         else:
             providers = np.array([trader.Provider5(p,providerMaxQ,pDelta,pAlpha) for p in providers_list])
         t_delta_p = np.array([p.delta_p for p in providers])
@@ -123,21 +141,27 @@ class Runner(object):
         self.exchange.add_order_to_book(qbid)
         self.exchange.order_history.append(qbid)
         
-    def makeSetup(self, prime1, lambda0):
-        top_of_book = self.exchange.report_top_of_book(0)
+    @cython.boundscheck(False)    
+    cdef void makeSetup(self, int prime1, int lambda0):
+        cdef unsigned int current_time
+        cdef dict top_of_book = self.exchange.report_top_of_book(0)
+        cdef trader.Provider p
         for current_time in range(1, prime1):
             for p in self.makeProviders(current_time):
                 p.process_signal(current_time, top_of_book, self.q_provide, -lambda0)
                 self.exchange.process_order(p.quote_collector[-1])
                 top_of_book = self.exchange.report_top_of_book(current_time)
                 
-    def makeProviders(self, step):
-        providers = self.provider_array[np.remainder(step, self.t_delta_p)==0]
+    cdef np.ndarray makeProviders(self, int step):
+        cdef np.ndarray providers = self.provider_array[np.remainder(step, self.t_delta_p)==0]
         np.random.shuffle(providers)
         return providers
     
-    def makeAll(self, step):
-        trader_list = []
+    cdef np.ndarray makeAll(self, int step):
+        cdef np.ndarray providers_mask, providers, takers_mask, takers, marketmakers_mask
+        cdef np.ndarray marketmakers, informed, all_traders
+        cdef bint informed_mask
+        cdef list trader_list = []
         if self.provider:
             providers_mask = np.remainder(step, self.t_delta_p)==0
             providers = np.vstack((self.provider_array, providers_mask)).T
@@ -158,19 +182,25 @@ class Runner(object):
         np.random.shuffle(all_traders)
         return all_traders
     
-    def doCancels(self, trader):
+    cdef void doCancels(self, trader):
+        cdef dict c
         for c in trader.cancel_collector:
             self.exchange.process_order(c)
             if self.exchange.confirm_modify_collector:
                 trader.confirm_cancel_local(self.exchange.confirm_modify_collector[0])
                     
-    def confirmTrades(self):
+    cdef void confirmTrades(self):
+        cdef dict c
         for c in self.exchange.confirm_trade_collector:
             contra_side = self.liquidity_providers[c['trader']]
             contra_side.confirm_trade_local(c)
     
-    def runMcs(self, prime1):
-        top_of_book = self.exchange.report_top_of_book(prime1)
+    @cython.boundscheck(False)         
+    cdef runMcs(self, int prime1):
+        cdef unsigned int current_time
+        cdef np.ndarray row
+        cdef dict q
+        cdef dict top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
                 if row[0].trader_type in self.providers:
@@ -193,8 +223,12 @@ class Runner(object):
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 
-    def runMcsPJ(self, prime1):
-        top_of_book = self.exchange.report_top_of_book(prime1)
+    @cython.boundscheck(False)         
+    cdef runMcsPJ(self, int prime1):
+        cdef unsigned int current_time
+        cdef np.ndarray row
+        cdef dict q, c
+        cdef dict top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
                 if row[0].trader_type in self.providers:
@@ -245,7 +279,7 @@ if __name__ == '__main__':
     start = time.time()
     print(start)
     
-    h5_root = 'mm1_cython_obtr2'
+    h5_root = 'mm1_cython_all_1'
     h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
     h5_file = '%s%s.h5' % (h5dir, h5_root)
     
@@ -259,3 +293,5 @@ if __name__ == '__main__':
     market1 = Runner(h5filename=h5_file, **settings)
 
     print('Run 2: %.2f minutes' % ((time.time() - start)/60))
+            
+    
