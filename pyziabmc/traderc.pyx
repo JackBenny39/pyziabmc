@@ -5,6 +5,8 @@ import random
 import numpy as np
 cimport numpy as np
 
+cimport cython
+
 
 cdef class ZITrader:
     '''
@@ -388,20 +390,24 @@ cdef class InformedTrader(ZITrader):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'InformedTrader'
         self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
-        self._side = np.random.choice(['buy', 'sell'])
+        self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
         
     def __repr__(self):
         return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
         
-    cpdef process_signal(self, int time, dict qsignal, float q_provider, float lambda_t):
+    cpdef process_signal(self, int time, float q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         cdef dict q
         q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(q)
         
-    def make_delta_i(self, run_steps, informed_trades, runlength):
-        t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
+    @cython.boundscheck(False)  
+    cpdef make_delta_i(self, int run_steps, int informed_trades, int runlength):
+        cdef np.ndarray stack1, temp, stack2, extras
+        cdef int s_length, i, repeats
+        cdef set new_choice_set
+        cdef np.ndarray t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
         if runlength > 1:
             stack1 = t_delta_i
             s_length = len(t_delta_i)

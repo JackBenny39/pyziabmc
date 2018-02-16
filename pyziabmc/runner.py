@@ -145,16 +145,18 @@ class Runner(object):
             trader_list.append(providers)
         if self.taker:
             takers_mask = np.remainder(step, self.t_delta_t)==0
-            takers = np.vstack((self.taker_array, takers_mask)).T
-            trader_list.append(takers[takers_mask])
+            if takers_mask.any():
+                takers = np.vstack((self.taker_array, takers_mask)).T
+                trader_list.append(takers[takers_mask])
         if self.marketmaker:
             marketmakers_mask = np.remainder(step, self.t_delta_m)==0
             marketmakers = np.vstack((self.marketmakers, marketmakers_mask)).T
             trader_list.append(marketmakers)
         if self.informed:
             informed_mask = step in self.informed_trader.delta_i
-            informed = np.squeeze(np.vstack((self.informed_trader, informed_mask)).T)
-            trader_list.append(informed[informed_mask])
+            if informed_mask:
+                informed = np.array([[self.informed_trader, informed_mask]])
+                trader_list.append(informed)
         all_traders = np.vstack(tuple(trader_list))
         np.random.shuffle(all_traders)
         return all_traders
@@ -247,13 +249,13 @@ if __name__ == '__main__':
     
         start = time.time()
         
-        h5_root = 'mm1_python_all_%d' % j
+        h5_root = 'mm1_python_all_%d_informed1' % j
         h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     
         settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
                     'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
-                    'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
+                    'InformedTrader': True, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
                     'PennyJumper': True, 'AlphaPJ': 0.05,
                     'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
                     'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}

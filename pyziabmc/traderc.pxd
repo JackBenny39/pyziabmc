@@ -64,6 +64,7 @@ cdef class InformedTrader(ZITrader):
     cdef str _side
     cdef int _price
     
-    cpdef process_signal(self, int time, dict qsignal, float q_provider, float lambda_t)
+    cpdef process_signal(self, int time, float q_taker)
+    cpdef make_delta_i(self, int run_steps, int informed_trades, int runlength)
     
 

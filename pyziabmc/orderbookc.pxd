@@ -15,3 +15,4 @@ cdef class Orderbook:
     cdef void _confirm_modify(self, int timestamp, str order_side, int order_quantity, str order_id)
     cpdef process_order(self, dict order)
     cdef void _match_trade(self, dict order)
+    cpdef report_top_of_book(self, int now_time)

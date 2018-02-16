@@ -157,7 +157,7 @@ cdef class Runner(object):
         np.random.shuffle(providers)
         return providers
     
-    cdef np.ndarray makeAll(self, int step):
+    cdef np.ndarray makeAllCy(self, int step):
         cdef np.ndarray providers_mask, providers, takers_mask, takers, marketmakers_mask
         cdef np.ndarray marketmakers, informed, all_traders
         cdef bint informed_mask
@@ -168,16 +168,42 @@ cdef class Runner(object):
             trader_list.append(providers)
         if self.taker:
             takers_mask = np.remainder(step, self.t_delta_t)==0
-            takers = np.vstack((self.taker_array, takers_mask)).T
-            trader_list.append(takers[takers_mask])
+            if takers_mask.any():
+                takers = np.vstack((self.taker_array, takers_mask)).T
+                trader_list.append(takers[takers_mask])
         if self.marketmaker:
             marketmakers_mask = np.remainder(step, self.t_delta_m)==0
             marketmakers = np.vstack((self.marketmakers, marketmakers_mask)).T
             trader_list.append(marketmakers)
         if self.informed:
             informed_mask = step in self.informed_trader.delta_i
-            informed = np.squeeze(np.vstack((self.informed_trader, informed_mask)).T)
-            trader_list.append(informed[informed_mask])
+            if informed_mask:
+                informed = np.array([[self.informed_trader, informed_mask]])
+                trader_list.append(informed)
+        all_traders = np.vstack(tuple(trader_list))
+        np.random.shuffle(all_traders)
+        return all_traders
+    
+    def makeAll(self, step):
+        trader_list = []
+        if self.provider:
+            providers_mask = np.remainder(step, self.t_delta_p)==0
+            providers = np.vstack((self.provider_array, providers_mask)).T
+            trader_list.append(providers)
+        if self.taker:
+            takers_mask = np.remainder(step, self.t_delta_t)==0
+            if takers_mask.any():
+                takers = np.vstack((self.taker_array, takers_mask)).T
+                trader_list.append(takers[takers_mask])
+        if self.marketmaker:
+            marketmakers_mask = np.remainder(step, self.t_delta_m)==0
+            marketmakers = np.vstack((self.marketmakers, marketmakers_mask)).T
+            trader_list.append(marketmakers)
+        if self.informed:
+            informed_mask = step in self.informed_trader.delta_i
+            if informed_mask:
+                informed = np.array([[self.informed_trader, informed_mask]])
+                trader_list.append(informed)
         all_traders = np.vstack(tuple(trader_list))
         np.random.shuffle(all_traders)
         return all_traders

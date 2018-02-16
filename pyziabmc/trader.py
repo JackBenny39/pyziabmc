@@ -362,7 +362,7 @@ class InformedTrader(ZITrader):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'InformedTrader'
         self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
-        self._side = np.random.choice(['buy', 'sell'])
+        self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
         
     def __repr__(self):

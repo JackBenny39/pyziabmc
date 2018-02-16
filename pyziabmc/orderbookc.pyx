@@ -244,12 +244,12 @@ cdef class Orderbook:
         temp_df.to_hdf(filename, 'tob', append=True, format='table', complevel=5, complib='blosc')
         self._sip_collector.clear()
     
-    def report_top_of_book(self, now_time):
+    cpdef report_top_of_book(self, int now_time):
         '''Update the top-of-book prices and sizes'''
-        best_bid_price = self._bid_book_prices[-1]
-        best_bid_size = self._bid_book[best_bid_price]['size']   
-        best_ask_price = self._ask_book_prices[0]
-        best_ask_size = self._ask_book[best_ask_price]['size']
-        tob = {'timestamp': now_time, 'best_bid': best_bid_price, 'best_ask': best_ask_price, 'bid_size': best_bid_size, 'ask_size': best_ask_size}
+        cdef int best_bid_price = self._bid_book_prices[-1]
+        cdef int best_bid_size = self._bid_book[best_bid_price]['size']   
+        cdef int best_ask_price = self._ask_book_prices[0]
+        cdef int best_ask_size = self._ask_book[best_ask_price]['size']
+        cdef dict tob = {'timestamp': now_time, 'best_bid': best_bid_price, 'best_ask': best_ask_price, 'bid_size': best_bid_size, 'ask_size': best_ask_size}
         self._sip_collector.append(tob)
         return tob
