@@ -4,15 +4,14 @@ import time
 import numpy as np
 import pandas as pd
 
-import pyziabmc.trader as trader
-
-from pyziabmc.orderbook import Orderbook
+import pyziabmc.traderc as trader
+import pyziabmc.orderbookc as orderbook
 
 
 class Runner(object):
     
     def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, **kwargs):
-        self.exchange = Orderbook()
+        self.exchange = orderbook.Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
         self.run_steps = run_steps + 1
@@ -145,18 +144,16 @@ class Runner(object):
             trader_list.append(providers)
         if self.taker:
             takers_mask = np.remainder(step, self.t_delta_t)==0
-            if takers_mask.any():
-                takers = np.vstack((self.taker_array, takers_mask)).T
-                trader_list.append(takers[takers_mask])
+            takers = np.vstack((self.taker_array, takers_mask)).T
+            trader_list.append(takers[takers_mask])
         if self.marketmaker:
             marketmakers_mask = np.remainder(step, self.t_delta_m)==0
             marketmakers = np.vstack((self.marketmakers, marketmakers_mask)).T
             trader_list.append(marketmakers)
         if self.informed:
             informed_mask = step in self.informed_trader.delta_i
-            if informed_mask:
-                informed = np.array([[self.informed_trader, informed_mask]])
-                trader_list.append(informed)
+            informed = np.squeeze(np.vstack((self.informed_trader, informed_mask)).T)
+            trader_list.append(informed[informed_mask])
         all_traders = np.vstack(tuple(trader_list))
         np.random.shuffle(all_traders)
         return all_traders
@@ -241,25 +238,24 @@ class Runner(object):
     
 if __name__ == '__main__':
     
-    print(time.time())
+    j = 1
+    random.seed(j)
+    np.random.seed(j)
     
-    for j in range(5):
-        random.seed(j)
-        np.random.seed(j)
+    start = time.time()
+    print(start)
     
-        start = time.time()
+    h5_root = 'mm1_cython_obtr2'
+    h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
+    h5_file = '%s%s.h5' % (h5dir, h5_root)
+    
+    settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
+                'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
+                'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
+                'PennyJumper': True, 'AlphaPJ': 0.05,
+                'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
+                'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
         
-        h5_root = 'mm1_python_all_%d_informed1' % j
-        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
-        h5_file = '%s%s.h5' % (h5dir, h5_root)
-    
-        settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
-                    'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
-                    'InformedTrader': True, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
-                    'PennyJumper': True, 'AlphaPJ': 0.05,
-                    'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
-                    'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
-        
-        market1 = Runner(h5filename=h5_file, **settings)
+    market1 = Runner(h5filename=h5_file, **settings)
 
-        print('Run %d: %.2f minutes' % (j, (time.time() - start)/60))
+    print('Run 2: %.2f minutes' % ((time.time() - start)/60))
