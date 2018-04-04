@@ -1,4 +1,3 @@
-import math
 import random
 
 import numpy as np
@@ -20,12 +19,17 @@ class ZITrader:
         quote_collector is a public container for carrying quotes to the exchange
         '''
         self.trader_id = name # trader id
-        self._quantity = self._make_q(maxq)
+        self.trader_type = 'ZITrader'
+        self.quantity = self._make_q(maxq)
         self.quote_collector = []
         self._quote_sequence = 0
         
     def __repr__(self):
-        return 'Trader({0}, {1})'.format(self.trader_id, self._quantity)
+        class_name = type(self).__name__
+        return '{0}({1}, {2})'.format(class_name, self.trader_id, self.quantity)
+    
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity]))
     
     def _make_q(self, maxq):
         '''Determine order size'''
@@ -36,7 +40,7 @@ class ZITrader:
         '''Make one add quote (dict)'''
         self._quote_sequence += 1
         order_id = '%s_%d' % (self.trader_id, self._quote_sequence)
-        return {'order_id': order_id, 'timestamp': time, 'type': 'add', 'quantity': self._quantity, 
+        return {'order_id': order_id, 'timestamp': time, 'type': 'add', 'quantity': self.quantity, 
                 'side': side, 'price': price}
         
         
@@ -49,20 +53,22 @@ class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    def __init__(self, name, maxq, delta, alpha=None):
+    def __init__(self, name, maxq, delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Provider'
         self._delta = delta
-        if alpha is not None:
-            self.delta_p = math.floor(random.expovariate(alpha) + 1)*self._quantity
         self.local_book = {}
         self.cancel_collector = []
                 
     def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
+        class_name = type(self).__name__
+        return '{0}({1}, {2}, {3})'.format(class_name, self.trader_id, self.quantity, self._delta)
+    
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity, self._delta]))
     
     def _make_cancel_quote(self, q, time):
         return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
@@ -92,7 +98,6 @@ class Provider(ZITrader):
     def process_signal(self, time, qsignal, q_provider, lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
         self.quote_collector.clear()
-        #if np.random.uniform(0,1) < q_provider:
         if random.uniform(0,1) < q_provider:
             price = self._choose_price_from_exp('bid', qsignal['best_ask'], lambda_t)
             side = 'buy'
@@ -121,11 +126,11 @@ class Provider5(Provider):
     Subclass of Provider
     '''
 
-    def __init__(self, name, maxq, delta, alpha):
+    def __init__(self, name, maxq, delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
-        Provider.__init__(self, name, maxq, delta, alpha=alpha)
+        Provider.__init__(self, name, maxq, delta)
 
     def _choose_price_from_exp(self, side, inside_price, lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -157,11 +162,14 @@ class MarketMaker(Provider):
         self._quote_range = quote_range
         self._position = 0
         self._cash_flow = 0
-        self.delta_p = self._quantity
         self.cash_flow_collector = []
-                      
+    
     def __repr__(self):
-        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self.trader_type, self._num_quotes)
+        class_name = type(self).__name__
+        return '{0}({1}, {2}, {3}, {4}, {5})'.format(class_name, self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range)
+    
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range]))
             
     def confirm_trade_local(self, confirm):
         '''Modify _cash_flow and _position; update the local_book'''
@@ -263,9 +271,13 @@ class PennyJumper(ZITrader):
         self.cancel_collector = []
         self._ask_quote = None
         self._bid_quote = None
-        
+    
     def __repr__(self):
-        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self._mpi, self.trader_type)
+        class_name = type(self).__name__
+        return '{0}({1}, {2}, {3})'.format(class_name, self.trader_id, self.quantity, self._mpi)
+
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
     def _make_cancel_quote(self, q, time):
         return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
@@ -328,13 +340,9 @@ class Taker(ZITrader):
     Public methods: process_signal 
     '''
 
-    def __init__(self, name, maxq, mu):
+    def __init__(self, name, maxq):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Taker'
-        self.delta_t = math.floor(random.expovariate(mu) + 1)*self._quantity
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
         
     def process_signal(self, time, q_taker):
         '''Taker buys or sells with 50% probability.'''
@@ -358,33 +366,13 @@ class InformedTrader(ZITrader):
     Public methods: process_signal
     '''
     
-    def __init__(self, name, maxq, run_steps, informed_trades, runlength):
+    def __init__(self, name, maxq):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'InformedTrader'
-        self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
         self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
         
     def process_signal(self, time, *args):
         '''InformedTrader buys or sells pre-specified attribute.'''
         q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(q)
-        
-    def make_delta_i(self, run_steps, informed_trades, runlength):
-        t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
-        if runlength > 1:
-            stack1 = t_delta_i
-            s_length = len(t_delta_i)
-            for i in range(1, runlength):
-                temp = t_delta_i+i
-                stack2 = np.unique(np.hstack((stack1, temp)))
-                repeats = (i+1)*s_length - len(set(stack2))
-                new_choice_set = set(range(run_steps)) - set(stack2)
-                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
-                stack1 = np.hstack((stack2, extras))
-            t_delta_i = stack1
-        return set(t_delta_i)
-    

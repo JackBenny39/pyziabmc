@@ -25,12 +25,16 @@ cdef class ZITrader:
         '''
         self.trader_id = name # trader id
         self.trader_type = 'ZITrader'
-        self._quantity = self._make_q(maxq)
+        self.quantity = self._make_q(maxq)
         self.quote_collector = []
         self._quote_sequence = 0
         
     def __repr__(self):
-        return 'Trader({0}, {1})'.format(self.trader_id, self._quantity)
+        class_name = type(self).__name__
+        return '{0}({1}, {2})'.format(class_name, self.trader_id, self.quantity)
+    
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity]))
     
     cdef int _make_q(self, int maxq):
         '''Determine order size'''
@@ -42,7 +46,7 @@ cdef class ZITrader:
         self._quote_sequence += 1
         cdef str order_id = '%s_%d' % (self.trader_id, self._quote_sequence)
         cdef str qtype = 'add'
-        return {'order_id': order_id, 'timestamp': time, 'type': qtype, 'quantity': self._quantity, 
+        return {'order_id': order_id, 'timestamp': time, 'type': qtype, 'quantity': self.quantity, 
                 'side': side, 'price': price}
         
         
@@ -55,22 +59,22 @@ cdef class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    def __init__(self, str name, int maxq, float delta, alpha=None):
+    def __init__(self, str name, int maxq, float delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Provider'
         self._delta = delta
-        if alpha is not None:
-            '''np.int is faster than math.floor; 
-               random.expovariate is faster than numpy.random.exponential (for size == 1)'''
-            self.delta_p = np.int(random.expovariate(alpha) + 1)*self._quantity
         self.local_book = {}
         self.cancel_collector = []
                 
     def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
+        class_name = type(self).__name__
+        return '{0}({1}, {2}, {3})'.format(class_name, self.trader_id, self.quantity, self._delta)
+    
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity, self._delta]))
     
     cdef dict _make_cancel_quote(self, dict q, int time):
         return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
@@ -136,11 +140,11 @@ cdef class Provider5(Provider):
     Subclass of Provider
     '''
 
-    def __init__(self, str name, int maxq, float delta, float alpha):
+    def __init__(self, str name, int maxq, float delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
-        Provider.__init__(self, name, maxq, delta, alpha=alpha)
+        Provider.__init__(self, name, maxq, delta)
 
     cdef int _choose_price_from_exp(self, str buysell, int inside_price, float lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -172,11 +176,14 @@ cdef class MarketMaker(Provider):
         self._quote_range = quote_range
         self._position = 0
         self._cash_flow = 0
-        self.delta_p = self._quantity
         self.cash_flow_collector = []
                       
     def __repr__(self):
-        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self.trader_type, self._num_quotes)
+        class_name = type(self).__name__
+        return '{0}({1}, {2}, {3}, {4}, {5})'.format(class_name, self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range)
+    
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range]))
     
     cpdef confirm_trade_local(self, dict confirm):
         '''Modify _cash_flow and _position; update the local_book'''
@@ -288,7 +295,11 @@ cdef class PennyJumper(ZITrader):
         self._bid_quote = None
         
     def __repr__(self):
-        return 'Trader({0}, {1}, {2}, {3})'.format(self.trader_id, self._quantity, self._mpi, self.trader_type)
+        class_name = type(self).__name__
+        return '{0}({1}, {2}, {3})'.format(class_name, self.trader_id, self.quantity, self._mpi)
+
+    def __str__(self):
+        return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
     cdef dict _make_cancel_quote(self, dict q, int time):
         return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
@@ -353,13 +364,9 @@ cdef class Taker(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader)
     Public methods: process_signal 
     '''
-    def __init__(self, str name, int maxq, float mu):
+    def __init__(self, str name, int maxq):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Taker'
-        self.delta_t = np.int(random.expovariate(mu) + 1)*self._quantity
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
         
     cpdef process_signal(self, int time, float q_taker):
         '''Taker buys or sells with 50% probability.'''
@@ -386,38 +393,15 @@ cdef class InformedTrader(ZITrader):
     Public methods: process_signal
     '''
     
-    def __init__(self, str name, int maxq, int run_steps, int informed_trades, int runlength):
+    def __init__(self, str name, int maxq):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'InformedTrader'
-        self.delta_i = self.make_delta_i(run_steps, informed_trades, runlength)
         self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
-        
-    def __repr__(self):
-        return 'Trader({0}, {1}, {2})'.format(self.trader_id, self._quantity, self.trader_type)
         
     cpdef process_signal(self, int time, float q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         cdef dict q
         q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(q)
-        
-    @cython.boundscheck(False)  
-    cpdef make_delta_i(self, int run_steps, int informed_trades, int runlength):
-        cdef np.ndarray stack1, temp, stack2, extras
-        cdef int s_length, i, repeats
-        cdef set new_choice_set
-        cdef np.ndarray t_delta_i = np.random.choice(run_steps, size=np.int(informed_trades/(runlength*self._quantity)), replace=False)
-        if runlength > 1:
-            stack1 = t_delta_i
-            s_length = len(t_delta_i)
-            for i in range(1, runlength):
-                temp = t_delta_i+i
-                stack2 = np.unique(np.hstack((stack1, temp)))
-                repeats = (i+1)*s_length - len(set(stack2))
-                new_choice_set = set(range(run_steps)) - set(stack2)
-                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
-                stack1 = np.hstack((stack2, extras))
-            t_delta_i = stack1
-        return set(t_delta_i)
     

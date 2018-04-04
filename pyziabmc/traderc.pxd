@@ -1,8 +1,7 @@
-from unittest.mock import _side_effect_methods
-from pyziabmc.orderbookc import price
 cdef class ZITrader:
     cdef public str trader_id, trader_type
-    cdef int _quantity, _quote_sequence
+    cdef public int quantity
+    cdef int _quote_sequence
     cdef public list quote_collector
     
     cdef int _make_q(self, int maxq)
@@ -11,7 +10,6 @@ cdef class ZITrader:
     
 cdef class Provider(ZITrader):
     cdef float _delta
-    cdef public int delta_p
     cdef public list cancel_collector
     cdef public dict local_book
     
@@ -54,17 +52,13 @@ cdef class PennyJumper(ZITrader):
     
     
 cdef class Taker(ZITrader):
-    cdef public int delta_t
     
     cpdef process_signal(self, int time, float q_taker)
     
     
 cdef class InformedTrader(ZITrader):
-    cdef public set delta_i
     cdef str _side
     cdef int _price
     
     cpdef process_signal(self, int time, float q_taker)
-    cpdef make_delta_i(self, int run_steps, int informed_trades, int runlength)
     
-

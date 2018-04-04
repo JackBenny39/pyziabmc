@@ -29,7 +29,7 @@ class Runner(object):
         self.informed = kwargs.pop('InformedTrader')
         if self.informed:
             informedTrades = np.int(kwargs['iMu']*np.sum(self.run_steps/self.t_delta_t) if self.taker else 1/kwargs['iMu'])
-            self.informed_trader = self.buildInformedTrader(kwargs['informedMaxQ'], kwargs['informedRunLength'], informedTrades)
+            self.t_delta_i, self.informed_trader = self.buildInformedTrader(kwargs['informedMaxQ'], kwargs['informedRunLength'], informedTrades)
         self.pj = kwargs.pop('PennyJumper')
         if self.pj:
             self.pennyjumper = self.buildPennyJumper()
@@ -55,20 +55,35 @@ class Runner(object):
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
         providers_list = ['p%i' % i for i in range(numProviders)]
         if self.mpi==1:
-            providers = np.array([trader.Provider(p,providerMaxQ,pDelta,alpha=pAlpha) for p in providers_list])
+            providers = np.array([trader.Provider(p, providerMaxQ, pDelta) for p in providers_list])
         else:
-            providers = np.array([trader.Provider5(p,providerMaxQ,pDelta,pAlpha) for p in providers_list])
-        t_delta_p = np.array([p.delta_p for p in providers])
+            providers = np.array([trader.Provider5(p, providerMaxQ, pDelta) for p in providers_list])
+        provider_size = np.array([p.quantity for p in providers])
+        t_delta_p = np.floor(np.random.exponential(1/pAlpha, numProviders)+1)*provider_size
         return t_delta_p, providers
     
     def buildTakers(self, numTakers, takerMaxQ, tMu):
         takers_list = ['t%i' % i for i in range(numTakers)]
-        takers = np.array([trader.Taker(t, takerMaxQ, tMu) for t in takers_list])
-        t_delta_t = np.array([t.delta_t for t in takers])
+        takers = np.array([trader.Taker(t, takerMaxQ) for t in takers_list])
+        taker_size = np.array([t.quantity for t in takers])
+        t_delta_t = np.floor(np.random.exponential(1/tMu, numTakers)+1)*taker_size
         return t_delta_t, takers
     
     def buildInformedTrader(self, informedMaxQ, informedRunLength, informedTrades):
-        return trader.InformedTrader('i0', informedMaxQ, self.run_steps, informedTrades, informedRunLength)
+        informed = trader.InformedTrader('i0', informedMaxQ)
+        t_delta_i = np.random.choice(self.run_steps, size=np.int(informedTrades/(informedRunLength*informed.quantity)), replace=False)
+        if informedRunLength > 1:
+            stack1 = t_delta_i
+            s_length = len(t_delta_i)
+            for i in range(1, informedRunLength):
+                temp = t_delta_i+i
+                stack2 = np.unique(np.hstack((stack1, temp)))
+                repeats = (i+1)*s_length - len(set(stack2))
+                new_choice_set = set(range(self.run_steps)) - set(stack2)
+                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
+                stack1 = np.hstack((stack2, extras))
+            t_delta_i = stack1
+        return set(t_delta_i), informed
     
     def buildPennyJumper(self):
         return trader.PennyJumper('j0', 1, self.mpi)
@@ -79,7 +94,7 @@ class Runner(object):
             marketmakers = np.array([trader.MarketMaker(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
         else:
             marketmakers = np.array([trader.MarketMaker5(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
-        t_delta_m = np.array([m.delta_p for m in marketmakers])
+        t_delta_m = np.array([m.quantity for m in marketmakers])
         return t_delta_m, marketmakers
     
     def makeQTake(self, q_take, lambda_0, wn, c_lambda):
@@ -109,7 +124,7 @@ class Runner(object):
         return lp_dict
     
     def seedOrderbook(self):
-        seed_provider = trader.Provider('p999999', 1, 5, 0.05)
+        seed_provider = trader.Provider('p999999', 1, 0.05)
         self.liquidity_providers.update({'p999999': seed_provider})
         ba = random.choice(range(1000005, 1002001, 5))
         bb = random.choice(range(997995, 999996, 5))
@@ -153,7 +168,7 @@ class Runner(object):
             marketmakers = np.vstack((self.marketmakers, marketmakers_mask)).T
             trader_list.append(marketmakers)
         if self.informed:
-            informed_mask = step in self.informed_trader.delta_i
+            informed_mask = step in self.t_delta_i
             if informed_mask:
                 informed = np.array([[self.informed_trader, informed_mask]])
                 trader_list.append(informed)
@@ -249,7 +264,7 @@ if __name__ == '__main__':
     
         start = time.time()
         
-        h5_root = 'mm1_python_all_%d_informed1' % j
+        h5_root = 'mm1_python_all_%d_informed1a' % j
         h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     

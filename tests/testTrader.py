@@ -10,13 +10,13 @@ class TestTrader(unittest.TestCase):
     
     def setUp(self):
         self.z1 = ZITrader('z1', 5)
-        self.p1 = Provider('p1', 1, 1, 0.05)
-        self.p5 = Provider5('p5', 1, 5, 0.05)
+        self.p1 = Provider('p1', 1, 0.025)
+        self.p5 = Provider5('p5', 1, 0.025)
         self.m1 = MarketMaker('m1', 1, 0.05, 12, 60)
         self.m5 = MarketMaker5('m5', 1, 0.05, 12, 60)
         self.j1 = PennyJumper('j1', 1, 5)
-        self.t1 = Taker('t1', 1, 0.001)
-        self.i1 = InformedTrader('i1', 1, 100000, 25000, 1)
+        self.t1 = Taker('t1', 1)
+        self.i1 = InformedTrader('i1', 1)
         
         self.q1 = {'order_id': 'p1_1', 'timestamp': 1, 'type': 'add', 'quantity': 1, 'side': 'buy',
                    'price': 125}
@@ -42,26 +42,36 @@ class TestTrader(unittest.TestCase):
 # ZITrader tests
 
     def test_repr_ZITrader(self):
-        self.assertEqual('Trader(z1, {0})'.format(self.z1._quantity), '{0}'.format(self.z1))
+        self.assertEqual('ZITrader({0}, {1})'.format(self.z1.trader_id, self.z1.quantity), '{0!r}'.format(self.z1))
+        
+    def test_str_ZITrader(self):
+        self.assertEqual('({0!r}, {1})'.format(self.z1.trader_id, self.z1.quantity), '{0}'.format(self.z1))
     
     def test_make_q(self):
-        self.assertLessEqual(self.z1._quantity, 5)
+        self.assertLessEqual(self.z1.quantity, 5)
     
     def test_make_add_quote(self):
         time = 1
         side = 'sell'
         price = 125
         q = self.z1._make_add_quote(time, side, price)
-        expected = {'order_id': 'z1_1', 'timestamp': 1, 'type': 'add', 'quantity': self.z1._quantity, 'side': 'sell', 
+        expected = {'order_id': 'z1_1', 'timestamp': 1, 'type': 'add', 'quantity': self.z1.quantity, 'side': 'sell', 
                     'price': 125}
         self.assertDictEqual(q, expected)
         
 # Provider tests  
 
     def test_repr_Provider(self):
-        self.assertEqual('Trader(p1, 1, Provider)', '{0}'.format(self.p1))
-        self.assertEqual('Trader(p5, 1, Provider)', '{0}'.format(self.p5))
-        self.assertTrue(self.p1.delta_p)
+        self.assertEqual('Provider({0}, {1}, {2})'.format(self.p1.trader_id, self.p1.quantity, self.p1._delta),
+                         '{0!r}'.format(self.p1))
+        self.assertEqual('Provider5({0}, {1}, {2})'.format(self.p5.trader_id, self.p5.quantity, self.p5._delta),
+                         '{0!r}'.format(self.p5))
+        
+    def test_str__Provider(self):
+        self.assertEqual('({0!r}, {1}, {2})'.format(self.p1.trader_id, self.p1.quantity, self.p1._delta), 
+                         '{0}'.format(self.p1))
+        self.assertEqual('({0!r}, {1}, {2})'.format(self.p5.trader_id, self.p5.quantity, self.p5._delta), 
+                         '{0}'.format(self.p5))
               
     def test_make_cancel_quote_Provider(self):
         q = self.p1._make_cancel_quote(self.q1, 2)
@@ -120,17 +130,14 @@ class TestTrader(unittest.TestCase):
     def test_process_signal_Provider(self):
         time = 1
         q_provider = 0.5
-        low_ru_seed = 1
-        hi_ru_seed = 10
         tob_price = {'best_bid': 25000, 'best_ask': 75000}
         self.assertFalse(self.p1.quote_collector)
         self.assertFalse(self.p1.local_book)
-        np.random.seed(low_ru_seed)
+        random.seed(1)
         self.p1.process_signal(time, tob_price, q_provider, -100)
         self.assertEqual(len(self.p1.quote_collector), 1)
         self.assertEqual(self.p1.quote_collector[0]['side'], 'buy')
         self.assertEqual(len(self.p1.local_book), 1)
-        np.random.seed(hi_ru_seed)
         self.p1.process_signal(time, tob_price, q_provider, -100)
         self.assertEqual(len(self.p1.quote_collector), 1)
         self.assertEqual(self.p1.quote_collector[0]['side'], 'sell')
@@ -172,12 +179,18 @@ class TestTrader(unittest.TestCase):
         self.assertFalse(self.p1.cancel_collector)
         
 # MarketMaker tests
-           
-    def test_repr_MM(self):
-        self.assertEqual('Trader(m1, 1, MarketMaker, 12)', '{0}'.format(self.m1))
-        self.assertEqual('Trader(m5, 1, MarketMaker, 12)', '{0}'.format(self.m5))
-        self.assertEqual(self.m1.delta_p, self.m1._quantity)
-        self.assertEqual(self.m5.delta_p, self.m5._quantity)
+        
+    def test_repr_MarketMaker(self):
+        self.assertEqual('MarketMaker({0}, {1}, {2}, {3}, {4})'.format(self.m1.trader_id, self.m1.quantity, self.m1._delta, 
+                                                                       self.m1._num_quotes, self.m1._quote_range), '{0!r}'.format(self.m1))
+        self.assertEqual('MarketMaker5({0}, {1}, {2}, {3}, {4})'.format(self.m5.trader_id, self.m5.quantity, self.m5._delta,
+                                                                        self.m5._num_quotes, self.m5._quote_range), '{0!r}'.format(self.m5))
+        
+    def test_str_MarketMaker(self):
+        self.assertEqual('({0!r}, {1}, {2}, {3}, {4})'.format(self.m1.trader_id, self.m1.quantity, self.m1._delta, 
+                                                              self.m1._num_quotes, self.m1._quote_range), '{0}'.format(self.m1))
+        self.assertEqual('({0!r}, {1}, {2}, {3}, {4})'.format(self.m5.trader_id, self.m5.quantity, self.m5._delta,
+                                                              self.m5._num_quotes, self.m5._quote_range), '{0}'.format(self.m5))
         
     def test_confirm_trade_local_MM(self):
         '''
@@ -341,13 +354,17 @@ class TestTrader(unittest.TestCase):
         self.assertEqual(len(self.m1.local_book), 24)
         
 # PennyJumper tests
-    def test_repr_PJ(self):
-        self.assertEqual('Trader(j1, 1, 5, PennyJumper)', '{0}'.format(self.j1))
+
+    def test_repr_PennyJumper(self):
+        self.assertEqual('PennyJumper({0}, {1}, {2})'.format(self.j1.trader_id, self.j1.quantity, self.j1._mpi), '{0!r}'.format(self.j1))
+        
+    def test_str_PennyJumper(self):
+        self.assertEqual('({0!r}, {1}, {2})'.format(self.j1.trader_id, self.j1.quantity, self.j1._mpi), '{0}'.format(self.j1))
         
     def test_confirm_trade_local_PJ(self):
         # PennyJumper book
         self.j1._bid_quote = {'order_id': 'j1_1', 'timestamp': 1, 'type': 'add', 'quantity': 1, 'side': 'buy',
-                             'price': 125}
+                              'price': 125}
         self.j1._ask_quote = {'order_id': 'j1_6', 'timestamp': 6, 'type': 'add', 'quantity': 1, 'side': 'sell',
                               'price': 126}
         # trade at the bid
@@ -464,10 +481,12 @@ class TestTrader(unittest.TestCase):
         self.assertFalse(self.j1.quote_collector)
         
 # Taker tests
-
+        
     def test_repr_Taker(self):
-        #print('Provider: {0}, Taker: {1}'.format(self.p1, self.t1))
-        self.assertEqual('Trader(t1, 1, Taker)', '{0}'.format(self.t1))
+        self.assertEqual('Taker({0}, {1})'.format(self.t1.trader_id, self.t1.quantity), '{0!r}'.format(self.t1))
+        
+    def test_str_Taker(self):
+        self.assertEqual('({0!r}, {1})'.format(self.t1.trader_id, self.t1.quantity), '{0}'.format(self.t1))
         
     def test_process_signal_Taker(self):
         '''
@@ -490,9 +509,12 @@ class TestTrader(unittest.TestCase):
         self.assertEqual(self.t1.quote_collector[0]['price'], 0)
         
 # InformedTrader tests
-
+        
     def test_repr_InformedTrader(self):
-        self.assertEqual('Trader(i1, 1, InformedTrader)', '{0}'.format(self.i1))
+        self.assertEqual('InformedTrader({0}, {1})'.format(self.i1.trader_id, self.i1.quantity), '{0!r}'.format(self.i1))
+        
+    def test_str_InformedTrader(self):
+        self.assertEqual('({0!r}, {1})'.format(self.i1.trader_id, self.i1.quantity), '{0}'.format(self.i1))
         
     def test_process_signal_InformedTrader(self):
         '''
