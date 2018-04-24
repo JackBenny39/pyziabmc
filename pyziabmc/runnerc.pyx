@@ -19,7 +19,7 @@ cdef class Runner(object):
     cdef trader.InformedTrader informed_trader
     cdef trader.PennyJumper pennyjumper
     
-    cdef str h5filename
+    cdef public str h5filename
     cdef int mpi, write_interval, informedTrades
     cdef unsigned run_steps
     cdef list providers
