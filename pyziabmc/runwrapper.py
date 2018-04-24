@@ -167,31 +167,31 @@ settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0
             'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
             'PennyJumper': False, 'AlphaPJ': 0.05,
             'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
-            'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 50.0, 'Lambda0': 100}
+            'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
 
-trial_no = 1001
-end = 11
+trial_no = 80016
+end = 5
 
-h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMInformedTraderSum.h5' % trial_no
+#h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMInformedTraderSum.h5' % trial_no
        
 start = time.time()
 print(start)       
 for j in range(1, end):
     random.seed(j)
     np.random.seed(j)
-    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\informed_%d.h5' % (trial_no, j)
+    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\mm1_cython_timertest_%d.h5' % j #(trial_no, j)
     
-    market1 = Runner(h5filename=h5_file, **settings)
+    market1 = Runner(mpi=5, h5filename=h5_file, **settings)
     
-    participationToList(market1.h5filename, participation_collector)
-    positionToList(market1.h5filename, position_collector)
-    profitToList(market1.h5filename, profit_collector)
-    spreadToList(market1.h5filename, spread_collector)
-    cancelTradeToList(market1.h5filename, canceltrade_collector, by_mm_collector)
-    tradesRetsToList(market1.h5filename, returns_collector)
+#    participationToList(market1.h5filename, participation_collector)
+#    positionToList(market1.h5filename, position_collector)
+#    profitToList(market1.h5filename, profit_collector)
+#    spreadToList(market1.h5filename, spread_collector)
+#    cancelTradeToList(market1.h5filename, canceltrade_collector, by_mm_collector)
+#    tradesRetsToList(market1.h5filename, returns_collector)
 #    os.remove(market1.h5filename)
     
     print('Run %d:  %.2f minutes' % (j, (time.time() - start)/60))
     start = time.time()
 
-listsToh5(participation_collector, position_collector, profit_collector, spread_collector, canceltrade_collector, by_mm_collector, returns_collector, h5_out)
+#listsToh5(participation_collector, position_collector, profit_collector, spread_collector, canceltrade_collector, by_mm_collector, returns_collector, h5_out)

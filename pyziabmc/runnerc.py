@@ -10,7 +10,7 @@ import pyziabmc.orderbookc as orderbook
 
 class Runner(object):
     
-    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, **kwargs):
+    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, write_interval=50000, **kwargs):
         self.exchange = orderbook.Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
@@ -44,12 +44,13 @@ class Runner(object):
         if self.provider:
             self.makeSetup(prime1, kwargs['Lambda0'])
         if self.pj:
-            self.runMcsPJ(prime1)
+            self.runMcsPJ(prime1, write_interval)
         else:
-            self.runMcs(prime1)
+            self.runMcs(prime1, write_interval)
         self.exchange.trade_book_to_h5(h5filename)
         self.qTakeToh5()
         self.mmProfitabilityToh5()
+        print('Got Here')
                   
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
         providers_list = ['p%i' % i for i in range(numProviders)]
@@ -186,7 +187,7 @@ class Runner(object):
             contra_side = self.liquidity_providers[c['trader']]
             contra_side.confirm_trade_local(c)
     
-    def runMcs(self, prime1):
+    def runMcs(self, prime1, write_interval):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
@@ -206,11 +207,11 @@ class Runner(object):
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
-            if not np.remainder(current_time, 2000):
+            if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 
-    def runMcsPJ(self, prime1):
+    def runMcsPJ(self, prime1, write_interval):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
@@ -239,7 +240,7 @@ class Runner(object):
                         for q in self.pennyjumper.quote_collector:
                             self.exchange.process_order(q)
                     top_of_book = self.exchange.report_top_of_book(current_time)
-            if not np.remainder(current_time, 2000):
+            if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 

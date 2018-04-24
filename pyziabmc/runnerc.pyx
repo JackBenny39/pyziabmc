@@ -20,16 +20,17 @@ cdef class Runner(object):
     cdef trader.PennyJumper pennyjumper
     
     cdef str h5filename
-    cdef int mpi, run_steps, informedTrades
+    cdef int mpi, write_interval, informedTrades
+    cdef unsigned run_steps
     cdef list providers
     cdef bint provider, taker, informed, pj, marketmaker
     cdef np.ndarray t_delta_p, provider_array, t_delta_t, taker_array, t_delta_m, marketmakers, q_take, lambda_t
     cdef set t_delta_i
-    cdef float q_provide, alpha_pj
+    cdef double q_provide, alpha_pj
     cdef dict liquidity_providers
     
     
-    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, **kwargs):
+    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, write_interval=5000, **kwargs):
         self.exchange = orderbookc.Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
@@ -63,9 +64,9 @@ cdef class Runner(object):
         if self.provider:
             self.makeSetup(prime1, kwargs['Lambda0'])
         if self.pj:
-            self.runMcsPJ(prime1)
+            self.runMcsPJ(prime1, write_interval)
         else:
-            self.runMcs(prime1)
+            self.runMcs(prime1, write_interval)
         self.exchange.trade_book_to_h5(h5filename)
         self.qTakeToh5()
         self.mmProfitabilityToh5()
@@ -158,7 +159,7 @@ cdef class Runner(object):
         self.exchange.order_history.append(qbid)
         
     @cython.boundscheck(False)    
-    cdef void makeSetup(self, int prime1, int lambda0):
+    cdef void makeSetup(self, unsigned int prime1, double lambda0):
         cdef unsigned int current_time
         cdef dict top_of_book = self.exchange.report_top_of_book(0)
         cdef trader.Provider p
@@ -238,7 +239,7 @@ cdef class Runner(object):
             contra_side.confirm_trade_local(c)
     
     @cython.boundscheck(False)         
-    cdef runMcs(self, int prime1):
+    cdef runMcs(self, unsigned int prime1, int write_interval):
         cdef unsigned int current_time
         cdef np.ndarray row
         cdef dict q
@@ -261,12 +262,12 @@ cdef class Runner(object):
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
-            if not np.remainder(current_time, 2000):
+            if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 
     @cython.boundscheck(False)         
-    cdef runMcsPJ(self, int prime1):
+    cdef runMcsPJ(self, unsigned int prime1, int write_interval):
         cdef unsigned int current_time
         cdef np.ndarray row
         cdef dict q, c
@@ -298,7 +299,7 @@ cdef class Runner(object):
                         for q in self.pennyjumper.quote_collector:
                             self.exchange.process_order(q)
                     top_of_book = self.exchange.report_top_of_book(current_time)
-            if not np.remainder(current_time, 2000):
+            if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 

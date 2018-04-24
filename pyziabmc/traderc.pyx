@@ -59,7 +59,7 @@ cdef class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    def __init__(self, str name, int maxq, float delta):
+    def __init__(self, str name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
@@ -105,7 +105,7 @@ cdef class Provider(ZITrader):
                 if orders_to_delete[i] < self._delta:
                     self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(idx), time))
                     
-    cpdef process_signal(self, int time, dict qsignal, float q_provider, float lambda_t):
+    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
         cdef int price
         cdef str side, buysell
@@ -123,7 +123,7 @@ cdef class Provider(ZITrader):
         self.local_book[q['order_id']] = q
         self.quote_collector.append(q)
         
-    cdef int _choose_price_from_exp(self, str buysell, int inside_price, float lambda_t):
+    cdef int _choose_price_from_exp(self, str buysell, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
         cdef int plug
         plug = np.int(lambda_t*np.log(np.random.rand()))
@@ -140,13 +140,13 @@ cdef class Provider5(Provider):
     Subclass of Provider
     '''
 
-    def __init__(self, str name, int maxq, float delta):
+    def __init__(self, str name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         Provider.__init__(self, name, maxq, delta)
 
-    cdef int _choose_price_from_exp(self, str buysell, int inside_price, float lambda_t):
+    cdef int _choose_price_from_exp(self, str buysell, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
         cdef int plug
         plug = np.int(lambda_t*np.log(np.random.rand()))
@@ -166,7 +166,7 @@ cdef class MarketMaker(Provider):
     Public methods: confirm_cancel_local (from Provider), confirm_trade_local, process_signal 
     '''
 
-    def __init__(self, str name, int maxq, float delta, int num_quotes, int quote_range):
+    def __init__(self, str name, int maxq, double delta, int num_quotes, int quote_range):
         '''_num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
@@ -205,7 +205,7 @@ cdef class MarketMaker(Provider):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
     
-    cpdef process_signal(self, int time, dict qsignal, float q_provider, float lambda_t):
+    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -237,7 +237,7 @@ cdef class MarketMaker5(MarketMaker):
     Public methods: process_signal 
     '''
     
-    def __init__(self, str name, int maxq, float delta, int num_quotes, int quote_range):
+    def __init__(self, str name, int maxq, double delta, int num_quotes, int quote_range):
         '''
         _num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
@@ -246,7 +246,7 @@ cdef class MarketMaker5(MarketMaker):
         self._p5ask = [1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30]
         self._p5bid = [1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20]
                
-    cpdef process_signal(self, int time, dict qsignal, float q_provider, float lambda_t):
+    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -312,7 +312,7 @@ cdef class PennyJumper(ZITrader):
         else:
             self._ask_quote = None
             
-    cpdef process_signal(self, int time, dict qsignal, float q_taker):
+    cpdef process_signal(self, int time, dict qsignal, double q_taker):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
         point inside the current quotes.
         '''
@@ -368,7 +368,7 @@ cdef class Taker(ZITrader):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Taker'
         
-    cpdef process_signal(self, int time, float q_taker):
+    cpdef process_signal(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
         cdef int price
         cdef str side
@@ -399,7 +399,7 @@ cdef class InformedTrader(ZITrader):
         self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
         
-    cpdef process_signal(self, int time, float q_taker):
+    cpdef process_signal(self, int time, double q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         cdef dict q
         q = self._make_add_quote(time, self._side, self._price)

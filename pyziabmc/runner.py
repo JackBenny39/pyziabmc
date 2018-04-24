@@ -11,7 +11,7 @@ from pyziabmc.orderbook import Orderbook
 
 class Runner(object):
     
-    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, **kwargs):
+    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, write_interval=5000, **kwargs):
         self.exchange = Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
@@ -45,9 +45,9 @@ class Runner(object):
         if self.provider:
             self.makeSetup(prime1, kwargs['Lambda0'])
         if self.pj:
-            self.runMcsPJ(prime1)
+            self.runMcsPJ(prime1, write_interval)
         else:
-            self.runMcs(prime1)
+            self.runMcs(prime1, write_interval)
         self.exchange.trade_book_to_h5(h5filename)
         self.qTakeToh5()
         self.mmProfitabilityToh5()
@@ -187,7 +187,7 @@ class Runner(object):
             contra_side = self.liquidity_providers[c['trader']]
             contra_side.confirm_trade_local(c)
     
-    def runMcs(self, prime1):
+    def runMcs(self, prime1, write_interval):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
@@ -207,11 +207,11 @@ class Runner(object):
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
-            if not np.remainder(current_time, 2000):
+            if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 
-    def runMcsPJ(self, prime1):
+    def runMcsPJ(self, prime1, write_interval):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
@@ -240,7 +240,7 @@ class Runner(object):
                         for q in self.pennyjumper.quote_collector:
                             self.exchange.process_order(q)
                     top_of_book = self.exchange.report_top_of_book(current_time)
-            if not np.remainder(current_time, 2000):
+            if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)
                 self.exchange.sip_to_h5(self.h5filename)
                 
@@ -258,20 +258,20 @@ if __name__ == '__main__':
     
     print(time.time())
     
-    for j in range(5):
+    for j in range(1,6):
         random.seed(j)
         np.random.seed(j)
     
         start = time.time()
         
-        h5_root = 'mm1_python_all_%d_informed1a' % j
+        h5_root = 'mm1_python_timertest_%d' % j
         h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     
         settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
                     'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
-                    'InformedTrader': True, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
-                    'PennyJumper': True, 'AlphaPJ': 0.05,
+                    'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
+                    'PennyJumper': False, 'AlphaPJ': 0.05,
                     'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
                     'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
         
