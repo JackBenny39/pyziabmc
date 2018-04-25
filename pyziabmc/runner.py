@@ -53,7 +53,9 @@ class Runner(object):
         self.mmProfitabilityToh5()
                   
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
-        providers_list = ['p%i' % i for i in range(numProviders)]
+        ''' Providers id starts with 1
+        '''
+        providers_list = [1000 + i for i in range(numProviders)]
         if self.mpi==1:
             providers = np.array([trader.Provider(p, providerMaxQ, pDelta) for p in providers_list])
         else:
@@ -63,14 +65,18 @@ class Runner(object):
         return t_delta_p, providers
     
     def buildTakers(self, numTakers, takerMaxQ, tMu):
-        takers_list = ['t%i' % i for i in range(numTakers)]
+        ''' Takers id starts with 2
+        '''
+        takers_list = [2000 + i for i in range(numTakers)]
         takers = np.array([trader.Taker(t, takerMaxQ) for t in takers_list])
         taker_size = np.array([t.quantity for t in takers])
         t_delta_t = np.floor(np.random.exponential(1/tMu, numTakers)+1)*taker_size
         return t_delta_t, takers
     
     def buildInformedTrader(self, informedMaxQ, informedRunLength, informedTrades):
-        informed = trader.InformedTrader('i0', informedMaxQ)
+        ''' Informed trader id starts with 5
+        '''
+        informed = trader.InformedTrader(5000, informedMaxQ)
         t_delta_i = np.random.choice(self.run_steps, size=np.int(informedTrades/(informedRunLength*informed.quantity)), replace=False)
         if informedRunLength > 1:
             stack1 = t_delta_i
@@ -86,10 +92,14 @@ class Runner(object):
         return set(t_delta_i), informed
     
     def buildPennyJumper(self):
-        return trader.PennyJumper('j0', 1, self.mpi)
+        ''' PJ id starts with 4
+        '''
+        return trader.PennyJumper(4000, 1, self.mpi)
 
     def buildMarketMakers(self, mMMaxQ, numMMs, mMQuotes, mMQuoteRange, mMDelta):
-        marketmakers_list = ['m%i' % i for i in range(numMMs)]
+        ''' MM id starts with 3
+        '''
+        marketmakers_list = [3000 + i for i in range(numMMs)]
         if self.mpi==1:
             marketmakers = np.array([trader.MarketMaker(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
         else:
@@ -120,7 +130,7 @@ class Runner(object):
             temp_dict = dict(zip([x.trader_id for x in self.marketmakers], list(self.marketmakers)))
             lp_dict.update(temp_dict)
         if self.pj:
-            lp_dict.update({'j0': self.pennyjumper})
+            lp_dict.update({self.pennyjumper.trader_id: self.pennyjumper})
         return lp_dict
     
     def seedOrderbook(self):
