@@ -172,7 +172,8 @@ settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0
 trial_no = 2002
 end = 6
 
-h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMInformedTraderSum.h5' % trial_no
+h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMSmallCapSum.h5' % trial_no
+#h5_out = '/Users/chuckcollver/AgentBasedModels/h5Files/Trial %d/ABMSmallCapSum.h5' % trial_no
        
 start = time.time()
 print(start)       
@@ -180,6 +181,7 @@ for j in range(1, end):
     random.seed(j)
     np.random.seed(j)
     h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\smallcap_ctest_%d.h5' % (trial_no, j)
+#    h5_file = '/Users/chuckcollver/AgentBasedModels/h5Files/Trial %d/smallcap_%d.h5' % (trial_no, j)
     
     market1 = runnerc.Runner(h5filename=h5_file, **settings)
     
