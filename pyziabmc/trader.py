@@ -287,8 +287,8 @@ class PennyJumper(ZITrader):
         return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
     def _make_cancel_quote(self, q, time):
-        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
-                'side': q['side'], 'price': q['price']}
+        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
+                'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
 
     def confirm_trade_local(self, confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''

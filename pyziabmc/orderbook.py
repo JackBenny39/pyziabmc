@@ -41,14 +41,15 @@ class Orderbook(object):
         self._sip_collector = []
         self.trade_book = []
         self._order_index = 0
+        self._ex_index = 0
         self.traded = False
 
     def _add_order_to_history(self, order):
         '''Add an order (dict) to order_history'''
-        hist_order = {'order_id': order['order_id'], 'timestamp': order['timestamp'], 'type': order['type'], 
-                      'quantity': order['quantity'], 'side': order['side'], 'price': order['price']}
         self._order_index += 1
-        hist_order['exid'] = self._order_index
+        hist_order = {'exid': self._order_index, 'order_id': order['order_id'], 'trader_id': order['trader_id'], 
+                      'timestamp': order['timestamp'], 'type': order['type'], 'quantity': order['quantity'], 
+                      'side': order['side'], 'price': order['price']}
         self.order_history.append(hist_order)
     
     def add_order_to_book(self, order):
@@ -56,8 +57,9 @@ class Orderbook(object):
         Use insort to maintain on ordered list of prices which serve as pointers
         to the orders.
         '''
-        book_order = {'order_id': order['order_id'], 'timestamp': order['timestamp'], 'type': order['type'], 
+        book_order = {'order_id': order['order_id'], 'trader_id': order['trader_id'], 'timestamp': order['timestamp'],
                       'quantity': order['quantity'], 'side': order['side'], 'price': order['price']}
+        self._ex_index += 1
         if order['side'] == 'buy':
             book_prices = self._bid_book_prices
             book = self._bid_book
@@ -67,12 +69,12 @@ class Orderbook(object):
         if order['price'] in book_prices:
             book[order['price']]['num_orders'] += 1
             book[order['price']]['size'] += order['quantity']
-            book[order['price']]['order_ids'].append(order['order_id'])
-            book[order['price']]['orders'][order['order_id']] =  book_order
+            book[order['price']]['ex_ids'].append(self._ex_index)
+            book[order['price']]['orders'][self._ex_index] = book_order
         else:
             bisect.insort(book_prices, order['price'])
-            book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'order_ids': [order['order_id']],
-                                    'orders': {order['order_id']: book_order}}
+            book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'ex_ids': [self._ex_index],
+                                    'orders': {self._ex_index: book_order}}
             
     def _remove_order(self, order_side, order_price, order_id):
         '''Pop the order_id; if  order_id exists, updates the book.'''
