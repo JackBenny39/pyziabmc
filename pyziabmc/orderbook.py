@@ -150,10 +150,10 @@ class Orderbook(object):
             book_prices = self._bid_book_prices if order['side'] == 'buy' else self._ask_book_prices
             if order['price'] in book_prices:
                 book = self._bid_book if order['side'] == 'buy' else self._ask_book
-                if order['order_id'] in book[order['price']]['orders']:
+                ex_id = self._lookup[order['trader_id']][order['order_id']]
+                if ex_id in book[order['price']]['orders'].keys():
                     self._confirm_modify(order['timestamp'], order['side'], order['quantity'],
                                          order['order_id'], order['trader_id'])
-                    ex_id = self._lookup[order['trader_id']][order['order_id']]
                     if order['type'] == 'cancel':
                         self._remove_order(order['side'], order['price'], ex_id)
                     else: #order['type'] == 'modify'
@@ -176,14 +176,16 @@ class Orderbook(object):
                         if remainder >= book_order['quantity']:
                             self._confirm_trade(order['timestamp'], book_order['side'], book_order['quantity'], book_order['order_id'], 
                                                 book_order['price'], book_order['trader_id'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'],
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
                                                     book_order['price'], book_order['quantity'], order['side'])
                             self._remove_order(book_order['side'], book_order['price'], ex_id)
                             remainder -= book_order['quantity']
                         else:
                             self._confirm_trade(order['timestamp'], book_order['side'], remainder, book_order['order_id'], 
                                                 book_order['price'], book_order['trader_id'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'],
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
                                                     book_order['price'], remainder, order['side'])
                             self._modify_order(book_order['side'], remainder, ex_id, book_order['price'])
                             break
@@ -207,14 +209,16 @@ class Orderbook(object):
                         if remainder >= book_order['quantity']:
                             self._confirm_trade(order['timestamp'], book_order['side'], book_order['quantity'], book_order['order_id'],
                                                 book_order['price'], book_order['trader_id'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'],
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
                                                     book_order['price'], book_order['quantity'], order['side'])
                             self._remove_order(book_order['side'], book_order['price'], ex_id)
                             remainder -= book_order['quantity']
                         else:
                             self._confirm_trade(order['timestamp'], book_order['side'], remainder, book_order['order_id'], 
                                                 book_order['price'], book_order['trader_id'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'],
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
                                                     book_order['price'], remainder, order['side'])
                             self._modify_order(book_order['side'], remainder, ex_id, book_order['price'])
                             break
