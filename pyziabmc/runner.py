@@ -268,7 +268,7 @@ if __name__ == '__main__':
     
     print(time.time())
     
-    for j in range(1,2):
+    for j in range(1,6):
         random.seed(j)
         np.random.seed(j)
     
