@@ -390,36 +390,41 @@ class TestOrderbook(unittest.TestCase):
         self.assertEqual(self.ex1._ask_book[55]['size'], 3)
         #self.assertFalse(self.ex1.sip_collector)
         # market sell order takes out part of first best bid
-        q1 = {'order_id': 't100_1', 'timestamp': 10, 'type': 'add', 'quantity': 1, 'side': 'sell',
-              'price': 0}
+        q1 = {'order_id': 1, 'trader_id': 1100, 'timestamp': 10, 'type': 'add', 'quantity': 1,
+              'side': 'sell', 'price': 0}
         self.ex1.process_order(q1)
         self.assertEqual(self.ex1._bid_book[50]['size'], 1)
         self.assertTrue(50 in self.ex1._bid_book_prices)
         self.assertEqual(self.ex1._bid_book[49]['size'], 3)
         self.assertEqual(self.ex1._bid_book[47]['size'], 3)
-        self.assertEqual(self.ex1._bid_book[50]['orders'][self.ex1._bid_book[50]['order_ids'][0]]['quantity'], 1)
+        self.assertEqual(self.ex1._bid_book[50]['orders'][3]['quantity'], 1)
+        self.assertDictEqual(self.ex1._lookup, {1001: {3: 2, 2: 3, 4: 4},
+                                                1010: {1: 5, 2: 6}, 1011: {1: 7, 2: 8}})
         #self.assertEqual(len(self.ex1.sip_collector), 1)
         # market sell order takes out remainder first best bid and all of the next level
         self.assertEqual(len(self.ex1._bid_book_prices), 3)
-        q2 = {'order_id': 't100_2', 'timestamp': 11, 'type': 'add', 'quantity': 4, 'side': 'sell',
-              'price': 0}
+        q2 = {'order_id': 2, 'trader_id': 1100, 'timestamp': 11, 'type': 'add', 'quantity': 4,
+              'side': 'sell', 'price': 0}
         self.ex1.process_order(q2)
         self.assertEqual(len(self.ex1._bid_book_prices), 1)
         self.assertFalse(50 in self.ex1._bid_book_prices)
         self.assertFalse(49 in self.ex1._bid_book_prices)
         self.assertTrue(47 in self.ex1._bid_book_prices)
+        self.assertDictEqual(self.ex1._lookup, {1001: {3: 2, 4: 4}, 1010: {2: 6}, 1011: {1: 7, 2: 8}})
         #self.assertEqual(len(self.ex1.sip_collector), 3)
         # make new market
-        q3 = {'order_id': 't101_1', 'timestamp': 12, 'type': 'add', 'quantity': 2, 'side': 'buy',
-              'price': 48}
-        q4 = {'order_id': 't102_1', 'timestamp': 13, 'type': 'add', 'quantity': 3, 'side': 'sell',
-              'price': 48}
+        q3 = {'order_id': 27, 'trader_id': 1101, 'timestamp': 12, 'type': 'add', 'quantity': 2,
+              'side': 'buy', 'price': 48}
+        q4 = {'order_id': 28, 'trader_id': 1101, 'timestamp': 13, 'type': 'add', 'quantity': 3,
+              'side': 'sell', 'price': 48}
         self.ex1.process_order(q3)
         self.assertEqual(len(self.ex1._bid_book_prices), 2)
         self.assertTrue(48 in self.ex1._bid_book_prices)
         self.assertTrue(47 in self.ex1._bid_book_prices)
         self.assertEqual(self.ex1._bid_book_prices[-1], 48)
         self.assertEqual(self.ex1._bid_book_prices[-2], 47)
+        self.assertDictEqual(self.ex1._lookup, {1001: {3: 2, 4: 4}, 1010: {2: 6},
+                                                1011: {1: 7, 2: 8}, 1101: {27: 9}})
         # sip_collector does not reset until new trade at new time
         #self.assertEqual(len(self.ex1.sip_collector), 3)
         self.ex1.process_order(q4)
@@ -430,6 +435,8 @@ class TestOrderbook(unittest.TestCase):
         self.assertTrue(48 in self.ex1._ask_book_prices)
         self.assertEqual(self.ex1._ask_book_prices[0], 48)
         self.assertEqual(self.ex1._bid_book_prices[-1], 47)
+        self.assertDictEqual(self.ex1._lookup, {1001: {3: 2, 4: 4}, 1010: {2: 6},
+                                                1011: {1: 7, 2: 8}, 1101: {28: 10}})
         #self.assertEqual(len(self.ex1.sip_collector), 1)
     
     def test_match_trade_buy(self):

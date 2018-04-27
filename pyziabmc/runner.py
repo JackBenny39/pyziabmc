@@ -134,20 +134,20 @@ class Runner(object):
         return lp_dict
     
     def seedOrderbook(self):
-        seed_provider = trader.Provider('p999999', 1, 0.05)
-        self.liquidity_providers.update({'p999999': seed_provider})
+        seed_provider = trader.Provider(9999, 1, 0.05)
+        self.liquidity_providers.update({9999: seed_provider})
         ba = random.choice(range(1000005, 1002001, 5))
         bb = random.choice(range(997995, 999996, 5))
-        qask = {'order_id': 'p999999_a', 'timestamp': 0, 'type': 'add', 'quantity': 1, 'side': 'sell',
-                'price': ba, 'exid': 99999999}
-        qbid = {'order_id': 'p999999_b', 'timestamp': 0, 'type': 'add', 'quantity': 1, 'side': 'buy',
-                'price': bb, 'exid': 99999999}
-        seed_provider.local_book['p999999_a'] = qask
+        qask = {'order_id': 1, 'trader_id': 9999, 'timestamp': 0, 'type': 'add', 
+                'quantity': 1, 'side': 'sell', 'price': ba}
+        qbid = {'order_id': 2, 'trader_id': 9999, 'timestamp': 0, 'type': 'add',
+                'quantity': 1, 'side': 'buy', 'price': bb}
+        seed_provider.local_book[1] = qask
         self.exchange.add_order_to_book(qask)
-        self.exchange.order_history.append(qask)
-        seed_provider.local_book['p999999_b'] = qbid
+        self.exchange._add_order_to_history(qask)
+        seed_provider.local_book[2] = qbid
         self.exchange.add_order_to_book(qbid)
-        self.exchange.order_history.append(qbid)
+        self.exchange._add_order_to_history(qbid)
         
     def makeSetup(self, prime1, lambda0):
         top_of_book = self.exchange.report_top_of_book(0)
@@ -268,14 +268,14 @@ if __name__ == '__main__':
     
     print(time.time())
     
-    for j in range(1,6):
+    for j in range(1,2):
         random.seed(j)
         np.random.seed(j)
     
         start = time.time()
         
-        h5_root = 'mm1_python_timertest_%d' % j
-        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
+        h5_root = 'simpletest_%d' % j
+        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 2001\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     
         settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
@@ -283,7 +283,7 @@ if __name__ == '__main__':
                     'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
                     'PennyJumper': False, 'AlphaPJ': 0.05,
                     'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
-                    'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
+                    'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 10.0, 'Lambda0': 100}
         
         market1 = Runner(h5filename=h5_file, **settings)
 
