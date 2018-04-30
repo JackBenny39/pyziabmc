@@ -92,9 +92,9 @@ cdef class Orderbook:
         else:
             self._lookup[trader_id] = {order_id: ex_id}
             
-    cdef void _remove_order(self, str order_side, int order_price, str order_id):
+    cdef void _remove_order(self, str order_side, int order_price, int ex_id):
         '''Pop the order_id; if  order_id exists, updates the book.'''
-        cdef dict book
+        cdef dict book, is_order
         cdef list book_prices
         if order_side == 'buy':
             book_prices = self._bid_book_prices
@@ -102,49 +102,50 @@ cdef class Orderbook:
         else:
             book_prices = self._ask_book_prices
             book = self._ask_book
-        is_order = book[order_price]['orders'].pop(order_id, None)
+        is_order = book[order_price]['orders'].pop(ex_id, None)
         if is_order:
             book[order_price]['num_orders'] -= 1
             book[order_price]['size'] -= is_order['quantity']
-            book[order_price]['order_ids'].remove(is_order['order_id'])
+            book[order_price]['ex_ids'].remove(ex_id)
             if book[order_price]['num_orders'] == 0:
                 book_prices.remove(order_price)
+            del self._lookup[is_order['trader_id']][is_order['order_id']]
                 
-    cdef void _modify_order(self, str order_side, int order_quantity, str order_id, int order_price):
+    cdef void _modify_order(self, str order_side, int order_quantity, int ex_id, int order_price):
         '''Modify order quantity; if quantity is 0, removes the order.'''
         cdef dict book
         book = self._bid_book if order_side == 'buy' else self._ask_book        
-        if order_quantity < book[order_price]['orders'][order_id]['quantity']:
+        if order_quantity < book[order_price]['orders'][ex_id]['quantity']:
             book[order_price]['size'] -= order_quantity
-            book[order_price]['orders'][order_id]['quantity'] -= order_quantity
+            book[order_price]['orders'][ex_id]['quantity'] -= order_quantity
         else:
-            self._remove_order(order_side, order_price, order_id)
+            self._remove_order(order_side, order_price, ex_id)
             
-    cdef void _add_trade_to_book(self, str resting_order_id, int resting_timestamp, str incoming_order_id, 
+    cdef void _add_trade_to_book(self, int resting_trader_id, int resting_order_id, int resting_timestamp,
+                                 int incoming_trader_id, int incoming_order_id,
                                  int timestamp, int price, int quantity, str side):
         '''Add trades (dicts) to the trade_book list.'''
-        self.trade_book.append({'resting_order_id': resting_order_id, 'resting_timestamp': resting_timestamp, 
-                                'incoming_order_id': incoming_order_id, 'timestamp': timestamp, 'price': price,
+        self.trade_book.append({'resting_trader_id': resting_trader_id, 'resting_order_id': resting_order_id, 'resting_timestamp': resting_timestamp, 
+                                'incoming_trader_id': incoming_trader_id, 'incoming_order_id': incoming_order_id, 'timestamp': timestamp, 'price': price,
                                 'quantity': quantity, 'side': side})
 
-    cdef void _confirm_trade(self, int timestamp, str order_side, int order_quantity, str order_id, int order_price):
+    cdef void _confirm_trade(self, int timestamp, str order_side, int order_quantity, int order_id,
+                             int order_price, int trader_id):
         '''Add trade confirmation to confirm_trade_collector list.'''
-        cdef str trader
-        trader = order_id.partition('_')[0]
-        self.confirm_trade_collector.append({'timestamp': timestamp, 'trader': trader, 'order_id': order_id, 
+        self.confirm_trade_collector.append({'timestamp': timestamp, 'trader': trader_id, 'order_id': order_id, 
                                              'quantity': order_quantity, 'side': order_side, 'price': order_price})
     
-    cdef void _confirm_modify(self, int timestamp, str order_side, int order_quantity, str order_id):
+    cdef void _confirm_modify(self, int timestamp, str order_side, int order_quantity, int order_id,
+                              int trader_id):
         '''Add modify confirmation to confirm_modify_collector list.'''
-        cdef str trader
-        trader = order_id.partition('_')[0]
-        self.confirm_modify_collector.append({'timestamp': timestamp, 'trader': trader, 'order_id': order_id, 
+        self.confirm_modify_collector.append({'timestamp': timestamp, 'trader': trader_id, 'order_id': order_id, 
                                               'quantity': order_quantity, 'side': order_side})
         
     cpdef process_order(self, dict order):
         '''Check for a trade (match); if so call _match_trade, otherwise modify book(s).'''
         cdef list book_prices
         cdef dict book
+        cdef int ex_id
         self.confirm_modify_collector.clear()
         self.traded = False
         self._add_order_to_history(order)
@@ -163,19 +164,20 @@ cdef class Orderbook:
             book_prices = self._bid_book_prices if order['side'] == 'buy' else self._ask_book_prices
             if order['price'] in book_prices:
                 book = self._bid_book if order['side'] == 'buy' else self._ask_book
-                if order['order_id'] in book[order['price']]['orders']:
-                    self._confirm_modify(order['timestamp'], order['side'], order['quantity'], order['order_id'])
+                ex_id = self._lookup[order['trader_id']][order['order_id']]
+                if ex_id in book[order['price']]['orders'].keys():
+                    self._confirm_modify(order['timestamp'], order['side'], order['quantity'],
+                                         order['order_id'], order['trader_id'])
                     if order['type'] == 'cancel':
-                        self._remove_order(order['side'], order['price'], order['order_id'])
+                        self._remove_order(order['side'], order['price'], ex_id)
                     else: #order['type'] == 'modify'
-                        self._modify_order(order['side'], order['quantity'], order['order_id'], order['price'])
+                        self._modify_order(order['side'], order['quantity'], ex_id, order['price'])
                         
     cdef void _match_trade(self, dict order):
         '''Match orders to generate trades, update books.'''
-        cdef int remainder, price
+        cdef int remainder, price, ex_id
         cdef list book_prices
         cdef dict book, book_order
-        cdef str book_order_id
         self.traded = True
         self.confirm_trade_collector.clear()
         if order['side'] == 'buy':
@@ -186,19 +188,23 @@ cdef class Orderbook:
                 if book_prices:
                     price = book_prices[0]
                     if order['price'] >= price:
-                        book_order_id = book[price]['order_ids'][0]
-                        book_order = book[price]['orders'][book_order_id]
+                        ex_id = book[price]['ex_ids'][0]
+                        book_order = book[price]['orders'][ex_id]
                         if remainder >= book_order['quantity']:
-                            self._confirm_trade(order['timestamp'], book_order['side'], book_order['quantity'], book_order['order_id'], book_order['price'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'], book_order['price'], 
-                                                    book_order['quantity'], order['side'])
-                            self._remove_order(book_order['side'], book_order['price'], book_order['order_id'])
+                            self._confirm_trade(order['timestamp'], book_order['side'], book_order['quantity'], book_order['order_id'], 
+                                                book_order['price'], book_order['trader_id'])
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
+                                                    book_order['price'], book_order['quantity'], order['side'])
+                            self._remove_order(book_order['side'], book_order['price'], ex_id)
                             remainder -= book_order['quantity']
                         else:
-                            self._confirm_trade(order['timestamp'], book_order['side'], remainder, book_order['order_id'], book_order['price'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'], book_order['price'],
-                                                    remainder, order['side'])
-                            self._modify_order(book_order['side'], remainder, book_order['order_id'], book_order['price'])
+                            self._confirm_trade(order['timestamp'], book_order['side'], remainder, book_order['order_id'], 
+                                                book_order['price'], book_order['trader_id'])
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
+                                                    book_order['price'], remainder, order['side'])
+                            self._modify_order(book_order['side'], remainder, ex_id, book_order['price'])
                             break
                     else:
                         order['quantity'] = remainder
@@ -215,19 +221,23 @@ cdef class Orderbook:
                 if book_prices:
                     price = book_prices[-1]
                     if order['price'] <= price:
-                        book_order_id = book[price]['order_ids'][0]
-                        book_order = book[price]['orders'][book_order_id] 
+                        ex_id = book[price]['ex_ids'][0]
+                        book_order = book[price]['orders'][ex_id] 
                         if remainder >= book_order['quantity']:
-                            self._confirm_trade(order['timestamp'], book_order['side'], book_order['quantity'], book_order['order_id'], book_order['price'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'], book_order['price'],
-                                                    book_order['quantity'], order['side'])
-                            self._remove_order(book_order['side'], book_order['price'], book_order['order_id'])
+                            self._confirm_trade(order['timestamp'], book_order['side'], book_order['quantity'], book_order['order_id'],
+                                                book_order['price'], book_order['trader_id'])
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
+                                                    book_order['price'], book_order['quantity'], order['side'])
+                            self._remove_order(book_order['side'], book_order['price'], ex_id)
                             remainder -= book_order['quantity']
                         else:
-                            self._confirm_trade(order['timestamp'], book_order['side'], remainder, book_order['order_id'], book_order['price'])
-                            self._add_trade_to_book(book_order['order_id'], book_order['timestamp'], order['order_id'], order['timestamp'], book_order['price'],
-                                                    remainder, order['side'])
-                            self._modify_order(book_order['side'], remainder, book_order['order_id'], book_order['price'])
+                            self._confirm_trade(order['timestamp'], book_order['side'], remainder, book_order['order_id'], 
+                                                book_order['price'], book_order['trader_id'])
+                            self._add_trade_to_book(book_order['trader_id'], book_order['order_id'], book_order['timestamp'],
+                                                    order['trader_id'], order['order_id'], order['timestamp'],
+                                                    book_order['price'], remainder, order['side'])
+                            self._modify_order(book_order['side'], remainder, ex_id, book_order['price'])
                             break
                     else:
                         order['quantity'] = remainder
@@ -240,15 +250,13 @@ cdef class Orderbook:
     def order_history_to_h5(self, filename):
         '''Append order history to an h5 file, clear the order_history'''
         temp_df = pd.DataFrame(self.order_history)
-        temp_df.to_hdf(filename, 'orders', append=True, format='table', complevel=5, complib='blosc', 
-                       min_itemsize={'order_id': 12}) 
+        temp_df.to_hdf(filename, 'orders', append=True, format='table', complevel=5, complib='blosc') 
         self.order_history.clear()
         
     def trade_book_to_h5(self, filename):
         '''Append trade_book to an h5 file, clear the trade_book'''
         temp_df = pd.DataFrame(self.trade_book)
-        temp_df.to_hdf(filename, 'trades', append=True, format='table', complevel=5, complib='blosc', 
-                       min_itemsize={'resting_order_id': 12, 'incoming_order_id': 12}) 
+        temp_df.to_hdf(filename, 'trades', append=True, format='table', complevel=5, complib='blosc') 
         self.trade_book.clear()
         
     def sip_to_h5(self, filename):
