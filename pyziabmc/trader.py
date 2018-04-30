@@ -83,24 +83,16 @@ class Provider(ZITrader):
         else:
             self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
             
-#    def bulk_cancel(self, time):
-#        '''bulk_cancel cancels _delta percent of outstanding orders'''
-#        self.cancel_collector.clear()
-#        lob = len(self.local_book)
-#        if lob > 0:
-#            order_keys = list(self.local_book.keys())
-#            orders_to_delete = np.random.ranf(lob)
-#            for idx in range(lob):
-#                if orders_to_delete[idx] < self._delta:
-#                    self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(order_keys[idx]), time))
-
     def bulk_cancel(self, time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
         self.cancel_collector.clear()
         lob = len(self.local_book)
         if lob > 0:
-            orders_to_delete = np.array(list(self.local_book.keys()))[np.random.ranf(lob) < self._delta]
-            self.cancel_collector = [self._make_cancel_quote(self.local_book.get(o), time) for o in orders_to_delete]
+            order_keys = list(self.local_book.keys())
+            orders_to_delete = np.random.ranf(lob)
+            for idx in range(lob):
+                if orders_to_delete[idx] < self._delta:
+                    self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(order_keys[idx]), time))
 
     def process_signal(self, time, qsignal, q_provider, lambda_t):
         '''Provider buys or sells with probability related to q_provide'''

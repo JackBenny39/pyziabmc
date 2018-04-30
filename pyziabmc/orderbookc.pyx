@@ -43,15 +43,17 @@ cdef class Orderbook:
         self._sip_collector = []
         self.trade_book = []
         self._order_index = 0
+        self._ex_index = 0
+        self._lookup = {}
         self.traded = False
         
     cdef void _add_order_to_history(self, dict order):
         '''Add an order (dict) to order_history'''
         cdef dict hist_order
-        hist_order = {'order_id': order['order_id'], 'timestamp': order['timestamp'], 'type': order['type'], 
-                      'quantity': order['quantity'], 'side': order['side'], 'price': order['price']}
         self._order_index += 1
-        hist_order['exid'] = self._order_index
+        hist_order = {'exid': self._order_index, 'order_id': order['order_id'], 'trader_id': order['trader_id'], 
+                      'timestamp': order['timestamp'], 'type': order['type'], 'quantity': order['quantity'], 
+                      'side': order['side'], 'price': order['price']}
         self.order_history.append(hist_order)
         
     cpdef add_order_to_book(self, dict order):
@@ -61,8 +63,9 @@ cdef class Orderbook:
         '''
         cdef dict book_order, book
         cdef list book_prices
-        book_order = {'order_id': order['order_id'], 'timestamp': order['timestamp'], 'type': order['type'], 
+        book_order = {'order_id': order['order_id'], 'trader_id': order['trader_id'], 'timestamp': order['timestamp'],
                       'quantity': order['quantity'], 'side': order['side'], 'price': order['price']}
+        self._ex_index += 1
         if order['side'] == 'buy':
             book_prices = self._bid_book_prices
             book = self._bid_book
@@ -72,12 +75,22 @@ cdef class Orderbook:
         if order['price'] in book_prices:
             book[order['price']]['num_orders'] += 1
             book[order['price']]['size'] += order['quantity']
-            book[order['price']]['order_ids'].append(order['order_id'])
-            book[order['price']]['orders'][order['order_id']] =  book_order
+            book[order['price']]['ex_ids'].append(self._ex_index)
+            book[order['price']]['orders'][self._ex_index] = book_order
         else:
             bisect.insort(book_prices, order['price'])
-            book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'order_ids': [order['order_id']],
-                                    'orders': {order['order_id']: book_order}}
+            book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'ex_ids': [self._ex_index],
+                                    'orders': {self._ex_index: book_order}}
+        self._add_order_to_lookup(book_order['trader_id'], book_order['order_id'], self._ex_index)
+        
+    cdef void _add_order_to_lookup(self, int trader_id, int order_id, int ex_id):
+        '''
+        Add lookup for ex_id
+        '''
+        if trader_id in self._lookup.keys():
+            self._lookup[trader_id][order_id] = ex_id
+        else:
+            self._lookup[trader_id] = {order_id: ex_id}
             
     cdef void _remove_order(self, str order_side, int order_price, str order_id):
         '''Pop the order_id; if  order_id exists, updates the book.'''

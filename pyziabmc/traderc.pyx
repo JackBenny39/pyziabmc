@@ -44,10 +44,9 @@ cdef class ZITrader:
     cdef dict _make_add_quote(self, int time, str side, int price):
         '''Make one add quote (dict)'''
         self._quote_sequence += 1
-        cdef str order_id = '%s_%d' % (self.trader_id, self._quote_sequence)
         cdef str qtype = 'add'
-        return {'order_id': order_id, 'timestamp': time, 'type': qtype, 'quantity': self.quantity, 
-                'side': side, 'price': price}
+        return {'order_id': self._quote_sequence, 'trader_id': self.trader_id, 'timestamp': time, 
+                'type': 'add', 'quantity': self.quantity, 'side': side, 'price': price}
         
         
 cdef class Provider(ZITrader):
@@ -77,8 +76,9 @@ cdef class Provider(ZITrader):
         return str(tuple([self.trader_id, self.quantity, self._delta]))
     
     cdef dict _make_cancel_quote(self, dict q, int time):
-        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
-                'side': q['side'], 'price': q['price']}
+        cdef str qtype = 'cancel'
+        return {'type': qtype, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
+                'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
         
     cpdef confirm_cancel_local(self, dict cancel_dict):
         del self.local_book[cancel_dict['order_id']]
@@ -302,8 +302,9 @@ cdef class PennyJumper(ZITrader):
         return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
     cdef dict _make_cancel_quote(self, dict q, int time):
-        return {'type': 'cancel', 'timestamp': time, 'order_id': q['order_id'], 'quantity': q['quantity'],
-                'side': q['side'], 'price': q['price']}
+        cdef str qtype = 'cancel'
+        return {'type': qtype, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
+                'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
 
     cpdef confirm_trade_local(self, dict confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''

@@ -1,6 +1,6 @@
 cdef class ZITrader:
-    cdef public str trader_id, trader_type
-    cdef public int quantity
+    cdef public str trader_type
+    cdef public int trader_id, quantity
     cdef int _quote_sequence
     cdef public list quote_collector
     
