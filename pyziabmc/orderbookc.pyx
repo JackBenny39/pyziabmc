@@ -47,7 +47,7 @@ cdef class Orderbook:
         self._lookup = {}
         self.traded = False
         
-    cdef void _add_order_to_history(self, dict order):
+    cpdef add_order_to_history(self, dict order):
         '''Add an order (dict) to order_history'''
         cdef dict hist_order
         self._order_index += 1
@@ -148,7 +148,7 @@ cdef class Orderbook:
         cdef int ex_id
         self.confirm_modify_collector.clear()
         self.traded = False
-        self._add_order_to_history(order)
+        self.add_order_to_history(order)
         if order['type'] == 'add':
             if order['side'] == 'buy':
                 if order['price'] >= self._ask_book_prices[0]:

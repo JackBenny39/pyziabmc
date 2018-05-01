@@ -8,21 +8,20 @@ import pyziabmc.runnerc as runnerc
 
 def participationToList(h5in, outlist):
     trade_df = pd.read_hdf(h5in, 'trades')
-    trade_df = trade_df.assign(trader_id = trade_df.resting_order_id.str.split('_').str[0])
-    lt_df = pd.DataFrame(trade_df.groupby(['trader_id']).quantity.count())
+    lt_df = pd.DataFrame(trade_df.groupby(['resting_trader_id']).quantity.count())
     lt_df.rename(columns={'quantity': 'trade'}, inplace=True)
-    if 'p999999' in lt_df.index:
-        lt_df.drop('p999999', inplace=True)
-    ltsum_df = pd.DataFrame(trade_df.groupby(['trader_id']).quantity.sum())
+    if 9999 in lt_df.index:
+        lt_df.drop(9999, inplace=True)
+    ltsum_df = pd.DataFrame(trade_df.groupby(['resting_trader_id']).quantity.sum())
     ltsum_df.rename(columns={'quantity': 'trade_vol'}, inplace=True)
     ltsum_df = ltsum_df.assign(Participation = 100*ltsum_df.trade_vol/ltsum_df.trade_vol.sum())
     providers = ltsum_df.index.unique()
-    market_makers = [x for x in providers if x.startswith('m')]
-    market_makers.append('j0')
+    market_makers = [x for x in providers if x >= 1000 and x < 2000]
+    market_makers.append(4000)
     ltsum_df = ltsum_df.ix[market_makers]
-    part_dict = {'MCRun': j, 'MM_Participation': ltsum_df.loc['m0', 'Participation']}
-    if 'j0' in providers:
-        part_dict.update({'PJ_Participation': ltsum_df.loc['j0', 'Participation']})
+    part_dict = {'MCRun': j, 'MM_Participation': ltsum_df.loc[1000, 'Participation']}
+    if 4000 in providers:
+        part_dict.update({'PJ_Participation': ltsum_df.loc[4000, 'Participation']})
     outlist.append(part_dict)
     
 def positionToList(h5in, outlist):
@@ -38,24 +37,23 @@ def positionToList(h5in, outlist):
         
 def profitToList(h5in, outlist):
     trade_df = pd.read_hdf(h5in, 'trades')
-    trade_df = trade_df.assign(trader_id = trade_df.resting_order_id.str.split('_').str[0])
     buy_trades = trade_df[trade_df.side=='buy']
     buy_trades = buy_trades.assign(BuyCashFlow = buy_trades.price*buy_trades.quantity)
-    buy_trades = buy_trades.assign(BuyVol = buy_trades.groupby('trader_id').quantity.cumsum(),
-                                   CumulBuyCF = buy_trades.groupby('trader_id').BuyCashFlow.cumsum()
+    buy_trades = buy_trades.assign(BuyVol = buy_trades.groupby('resting_trader_id').quantity.cumsum(),
+                                   CumulBuyCF = buy_trades.groupby('resting_trader_id').BuyCashFlow.cumsum()
                                   )
     buy_trades.rename(columns={'timestamp': 'buytimestamp'}, inplace=True)
     sell_trades = trade_df[trade_df.side=='sell']
     sell_trades = sell_trades.assign(SellCashFlow = -sell_trades.price*sell_trades.quantity)
-    sell_trades = sell_trades.assign(SellVol = sell_trades.groupby('trader_id').quantity.cumsum(),
-                                     CumulSellCF = sell_trades.groupby('trader_id').SellCashFlow.cumsum()
+    sell_trades = sell_trades.assign(SellVol = sell_trades.groupby('resting_trader_id').quantity.cumsum(),
+                                     CumulSellCF = sell_trades.groupby('resting_trader_id').SellCashFlow.cumsum()
                                     )
     sell_trades.rename(columns={'timestamp': 'selltimestamp'}, inplace=True)
-    buy_trades = buy_trades[['trader_id', 'BuyVol', 'CumulBuyCF', 'buytimestamp']]
-    sell_trades = sell_trades[['trader_id', 'SellVol', 'CumulSellCF', 'selltimestamp']]
-    cash_flow = pd.merge(buy_trades, sell_trades, left_on=['trader_id', 'BuyVol'], right_on=['trader_id', 'SellVol'])
+    buy_trades = buy_trades[['resting_trader_id', 'BuyVol', 'CumulBuyCF', 'buytimestamp']]
+    sell_trades = sell_trades[['resting_trader_id', 'SellVol', 'CumulSellCF', 'selltimestamp']]
+    cash_flow = pd.merge(buy_trades, sell_trades, left_on=['resting_trader_id', 'BuyVol'], right_on=['resting_trader_id', 'SellVol'])
     cash_flow = cash_flow.assign(NetCashFlow = cash_flow.CumulBuyCF + cash_flow.CumulSellCF)
-    temp_df = cash_flow.groupby('trader_id')['NetCashFlow', 'BuyVol'].last()
+    temp_df = cash_flow.groupby('resting_trader_id')['NetCashFlow', 'BuyVol'].last()
     temp_df = temp_df.assign(NetCFPerShare = temp_df.NetCashFlow/temp_df.BuyVol)
     temp_df = temp_df[['NetCashFlow', 'NetCFPerShare']]
     outlist.append(temp_df)
@@ -97,13 +95,11 @@ def tradesRetsToList(h5in, outlist):
     
 def cancelTradeToList(h5in, outlist1, outlist2):
     order_df = pd.read_hdf(h5in, 'orders')
-    order_df = order_df.assign(trader_id = order_df.order_id.str.split('_').str[0])
     lpsum_df = order_df.groupby(['trader_id','type']).quantity.sum().unstack(level=-1)
     lpsum_df.rename(columns={'add': 'add_vol', 'cancel': 'cancel_vol'}, inplace=True)
     
     trade_df = pd.read_hdf(h5in, 'trades')
-    trade_df = trade_df.assign(trader_id = trade_df.resting_order_id.str.split('_').str[0])
-    ltsum_df = pd.DataFrame(trade_df.groupby(['trader_id']).quantity.sum())
+    ltsum_df = pd.DataFrame(trade_df.groupby(['resting_trader_id']).quantity.sum())
     ltsum_df.rename(columns={'quantity': 'trade_vol'}, inplace=True)
     
     both_sum = pd.merge(lpsum_df, ltsum_df, how='right', left_index=True, right_index=True)
@@ -118,7 +114,7 @@ def cancelTradeToList(h5in, outlist1, outlist2):
     outlist1.append(total_dict)
     
     traders = both_sum.index.unique()
-    market_makers = [x for x in traders if (x.startswith('m') or x.startswith('j'))]
+    market_makers = [x for x in traders if (x == 1000 or x == 4000)]
     for mm in market_makers:
         cto_dict = {}
         temp = both_sum.loc[mm, :]
@@ -169,7 +165,7 @@ settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0
             'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
             'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 10.0, 'Lambda0': 100}
 
-trial_no = 2002
+trial_no = 2003
 end = 6
 
 h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMSmallCapSum.h5' % trial_no
@@ -180,7 +176,7 @@ print(start)
 for j in range(1, end):
     random.seed(j)
     np.random.seed(j)
-    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\smallcap_ctest_%d.h5' % (trial_no, j)
+    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\traderid_cython_%d.h5' % (trial_no, j)
 #    h5_file = '/Users/chuckcollver/AgentBasedModels/h5Files/Trial %d/smallcap_%d.h5' % (trial_no, j)
     
     market1 = runnerc.Runner(h5filename=h5_file, **settings)

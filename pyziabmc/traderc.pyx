@@ -17,7 +17,7 @@ cdef class ZITrader:
     Public methods: none
     '''
 
-    def __init__(self, name, maxq):
+    def __init__(self, int name, int maxq):
         '''
         Initialize ZITrader with some base class attributes and a method
         
@@ -58,7 +58,7 @@ cdef class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    def __init__(self, str name, int maxq, double delta):
+    def __init__(self, int name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
@@ -92,8 +92,7 @@ cdef class Provider(ZITrader):
           
     cpdef bulk_cancel(self, int time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
-        cdef int i, lob
-        cdef str idx
+        cdef int i, idx
         cdef list order_keys
         cdef np.ndarray orders_to_delete
         self.cancel_collector.clear()
@@ -140,7 +139,7 @@ cdef class Provider5(Provider):
     Subclass of Provider
     '''
 
-    def __init__(self, str name, int maxq, double delta):
+    def __init__(self, int name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
@@ -166,7 +165,7 @@ cdef class MarketMaker(Provider):
     Public methods: confirm_cancel_local (from Provider), confirm_trade_local, process_signal 
     '''
 
-    def __init__(self, str name, int maxq, double delta, int num_quotes, int quote_range):
+    def __init__(self, int name, int maxq, double delta, int num_quotes, int quote_range):
         '''_num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
@@ -237,7 +236,7 @@ cdef class MarketMaker5(MarketMaker):
     Public methods: process_signal 
     '''
     
-    def __init__(self, str name, int maxq, double delta, int num_quotes, int quote_range):
+    def __init__(self, int name, int maxq, double delta, int num_quotes, int quote_range):
         '''
         _num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
@@ -279,7 +278,7 @@ cdef class PennyJumper(ZITrader):
     Public methods: confirm_trade_local (from ZITrader)
     '''
     
-    def __init__(self, str name, int maxq, int mpi):
+    def __init__(self, int name, int maxq, int mpi):
         '''
         Initialize PennyJumper
         
@@ -365,7 +364,7 @@ cdef class Taker(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader)
     Public methods: process_signal 
     '''
-    def __init__(self, str name, int maxq):
+    def __init__(self, int name, int maxq):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'Taker'
         
@@ -394,7 +393,7 @@ cdef class InformedTrader(ZITrader):
     Public methods: process_signal
     '''
     
-    def __init__(self, str name, int maxq):
+    def __init__(self, int name, int maxq):
         ZITrader.__init__(self, name, maxq)
         self.trader_type = 'InformedTrader'
         self._side = random.choice(['buy', 'sell'])

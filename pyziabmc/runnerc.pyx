@@ -72,7 +72,7 @@ cdef class Runner(object):
         self.mmProfitabilityToh5()
         
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
-        providers_list = ['p%i' % i for i in range(numProviders)]
+        providers_list = [1000 + i for i in range(numProviders)]
         if self.mpi==1:
             providers = np.array([trader.Provider(p,providerMaxQ,pDelta) for p in providers_list])
         else:
@@ -82,14 +82,14 @@ cdef class Runner(object):
         return t_delta_p, providers
     
     def buildTakers(self, numTakers, takerMaxQ, tMu):
-        takers_list = ['t%i' % i for i in range(numTakers)]
+        takers_list = [2000 + i for i in range(numTakers)]
         takers = np.array([trader.Taker(t, takerMaxQ) for t in takers_list])
         taker_size = np.array([t.quantity for t in takers])
         t_delta_t = np.floor(np.random.exponential(1/tMu, numTakers)+1)*taker_size
         return t_delta_t, takers
     
     def buildInformedTrader(self, int informedMaxQ, int informedRunLength, int informedTrades):
-        informed = trader.InformedTrader('i0', informedMaxQ)
+        informed = trader.InformedTrader(5000, informedMaxQ)
         t_delta_i = np.random.choice(self.run_steps, size=np.int(informedTrades/(informedRunLength*informed.quantity)), replace=False)
         if informedRunLength > 1:
             stack1 = t_delta_i
@@ -105,10 +105,10 @@ cdef class Runner(object):
         return set(t_delta_i), informed
     
     def buildPennyJumper(self):
-        return trader.PennyJumper('j0', 1, self.mpi)
+        return trader.PennyJumper(4000, 1, self.mpi)
 
     def buildMarketMakers(self, mMMaxQ, numMMs, mMQuotes, mMQuoteRange, mMDelta):
-        marketmakers_list = ['m%i' % i for i in range(numMMs)]
+        marketmakers_list = [3000 + i for i in range(numMMs)]
         if self.mpi==1:
             marketmakers = np.array([trader.MarketMaker(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
         else:
@@ -143,20 +143,20 @@ cdef class Runner(object):
         return lp_dict
     
     def seedOrderbook(self):
-        seed_provider = trader.Provider('p999999', 1, 0.05)
-        self.liquidity_providers.update({'p999999': seed_provider})
+        seed_provider = trader.Provider(9999, 1, 0.05)
+        self.liquidity_providers.update({9999: seed_provider})
         ba = random.choice(range(1000005, 1002001, 5))
         bb = random.choice(range(997995, 999996, 5))
-        qask = {'order_id': 'p999999_a', 'timestamp': 0, 'type': 'add', 'quantity': 1, 'side': 'sell',
-                'price': ba, 'exid': 99999999}
-        qbid = {'order_id': 'p999999_b', 'timestamp': 0, 'type': 'add', 'quantity': 1, 'side': 'buy',
-                'price': bb, 'exid': 99999999}
-        seed_provider.local_book['p999999_a'] = qask
+        qask = {'order_id': 1, 'trader_id': 9999, 'timestamp': 0, 'type': 'add', 
+                'quantity': 1, 'side': 'sell', 'price': ba}
+        qbid = {'order_id': 2, 'trader_id': 9999, 'timestamp': 0, 'type': 'add',
+                'quantity': 1, 'side': 'buy', 'price': bb}
+        seed_provider.local_book[1] = qask
         self.exchange.add_order_to_book(qask)
-        self.exchange.order_history.append(qask)
-        seed_provider.local_book['p999999_b'] = qbid
+        self.exchange.add_order_to_history(qask)
+        seed_provider.local_book[2] = qbid
         self.exchange.add_order_to_book(qbid)
-        self.exchange.order_history.append(qbid)
+        self.exchange.add_order_to_history(qbid)
         
     @cython.boundscheck(False)    
     cdef void makeSetup(self, unsigned int prime1, double lambda0):
