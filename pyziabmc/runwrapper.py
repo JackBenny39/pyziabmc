@@ -4,7 +4,8 @@ import time
 import numpy as np
 import pandas as pd
 
-import pyziabmc.runnerc as runnerc
+#import pyziabmc.runnerc as runnerc
+import pyziabmc.runner as runner
 
 def participationToList(h5in, outlist):
     trade_df = pd.read_hdf(h5in, 'trades')
@@ -166,7 +167,7 @@ settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0
             'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 10.0, 'Lambda0': 100}
 
 trial_no = 2003
-end = 6
+end = 11
 
 h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMSmallCapSum.h5' % trial_no
 #h5_out = '/Users/chuckcollver/AgentBasedModels/h5Files/Trial %d/ABMSmallCapSum.h5' % trial_no
@@ -176,10 +177,11 @@ print(start)
 for j in range(1, end):
     random.seed(j)
     np.random.seed(j)
-    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\traderid_cython_%d.h5' % (trial_no, j)
+    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\traderid_python_%d.h5' % (trial_no, j)
 #    h5_file = '/Users/chuckcollver/AgentBasedModels/h5Files/Trial %d/smallcap_%d.h5' % (trial_no, j)
     
-    market1 = runnerc.Runner(h5filename=h5_file, **settings)
+#    market1 = runnerc.Runner(h5filename=h5_file, **settings)
+    market1 = runner.Runner(h5filename=h5_file, **settings)
     
     participationToList(market1.h5filename, participation_collector)
     positionToList(market1.h5filename, position_collector)
