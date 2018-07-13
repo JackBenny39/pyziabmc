@@ -373,5 +373,6 @@ class InformedTrader(ZITrader):
         
     def process_signal(self, time, *args):
         '''InformedTrader buys or sells pre-specified attribute.'''
+        self.quote_collector.clear()
         q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(q)

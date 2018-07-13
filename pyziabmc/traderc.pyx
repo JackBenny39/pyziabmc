@@ -402,6 +402,7 @@ cdef class InformedTrader(ZITrader):
     cpdef process_signal(self, int time, double q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         cdef dict q
+        self.quote_collector.clear()
         q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(q)
     
