@@ -4,15 +4,14 @@ import time
 import numpy as np
 import pandas as pd
 
-import pyziabmc.trader as trader
-
-from pyziabmc.orderbook import Orderbook
+import pyziabmc.traderc as trader
+import pyziabmc.orderbookc as orderbook
 
 
 class Runner(object):
     
-    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, write_interval=5000, **kwargs):
-        self.exchange = Orderbook()
+    def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, write_interval=50000, **kwargs):
+        self.exchange = orderbook.Orderbook()
         self.h5filename = h5filename
         self.mpi = mpi
         self.run_steps = run_steps + 1
@@ -51,11 +50,10 @@ class Runner(object):
         self.exchange.trade_book_to_h5(h5filename)
         self.qTakeToh5()
         self.mmProfitabilityToh5()
+        print('Got Here')
                   
     def buildProviders(self, numProviders, providerMaxQ, pAlpha, pDelta):
-        ''' Providers id starts with 1
-        '''
-        providers_list = [1000 + i for i in range(numProviders)]
+        providers_list = ['p%i' % i for i in range(numProviders)]
         if self.mpi==1:
             providers = np.array([trader.Provider(p, providerMaxQ, pDelta) for p in providers_list])
         else:
@@ -65,18 +63,14 @@ class Runner(object):
         return t_delta_p, providers
     
     def buildTakers(self, numTakers, takerMaxQ, tMu):
-        ''' Takers id starts with 2
-        '''
-        takers_list = [2000 + i for i in range(numTakers)]
+        takers_list = ['t%i' % i for i in range(numTakers)]
         takers = np.array([trader.Taker(t, takerMaxQ) for t in takers_list])
         taker_size = np.array([t.quantity for t in takers])
         t_delta_t = np.floor(np.random.exponential(1/tMu, numTakers)+1)*taker_size
         return t_delta_t, takers
     
     def buildInformedTrader(self, informedMaxQ, informedRunLength, informedTrades):
-        ''' Informed trader id starts with 5
-        '''
-        informed = trader.InformedTrader(5000, informedMaxQ)
+        informed = trader.InformedTrader('i0', informedMaxQ)
         t_delta_i = np.random.choice(self.run_steps, size=np.int(informedTrades/(informedRunLength*informed.quantity)), replace=False)
         if informedRunLength > 1:
             stack1 = t_delta_i
@@ -92,14 +86,10 @@ class Runner(object):
         return set(t_delta_i), informed
     
     def buildPennyJumper(self):
-        ''' PJ id starts with 4
-        '''
-        return trader.PennyJumper(4000, 1, self.mpi)
+        return trader.PennyJumper('j0', 1, self.mpi)
 
     def buildMarketMakers(self, mMMaxQ, numMMs, mMQuotes, mMQuoteRange, mMDelta):
-        ''' MM id starts with 3
-        '''
-        marketmakers_list = [3000 + i for i in range(numMMs)]
+        marketmakers_list = ['m%i' % i for i in range(numMMs)]
         if self.mpi==1:
             marketmakers = np.array([trader.MarketMaker(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
         else:
@@ -130,24 +120,24 @@ class Runner(object):
             temp_dict = dict(zip([x.trader_id for x in self.marketmakers], list(self.marketmakers)))
             lp_dict.update(temp_dict)
         if self.pj:
-            lp_dict.update({self.pennyjumper.trader_id: self.pennyjumper})
+            lp_dict.update({'j0': self.pennyjumper})
         return lp_dict
     
     def seedOrderbook(self):
-        seed_provider = trader.Provider(9999, 1, 0.05)
-        self.liquidity_providers.update({9999: seed_provider})
+        seed_provider = trader.Provider('p999999', 1, 0.05)
+        self.liquidity_providers.update({'p999999': seed_provider})
         ba = random.choice(range(1000005, 1002001, 5))
         bb = random.choice(range(997995, 999996, 5))
-        qask = {'order_id': 1, 'trader_id': 9999, 'timestamp': 0, 'type': 'add', 
-                'quantity': 1, 'side': 'sell', 'price': ba}
-        qbid = {'order_id': 2, 'trader_id': 9999, 'timestamp': 0, 'type': 'add',
-                'quantity': 1, 'side': 'buy', 'price': bb}
-        seed_provider.local_book[1] = qask
+        qask = {'order_id': 'p999999_a', 'timestamp': 0, 'type': 'add', 'quantity': 1, 'side': 'sell',
+                'price': ba, 'exid': 99999999}
+        qbid = {'order_id': 'p999999_b', 'timestamp': 0, 'type': 'add', 'quantity': 1, 'side': 'buy',
+                'price': bb, 'exid': 99999999}
+        seed_provider.local_book['p999999_a'] = qask
         self.exchange.add_order_to_book(qask)
-        self.exchange._add_order_to_history(qask)
-        seed_provider.local_book[2] = qbid
+        self.exchange.order_history.append(qask)
+        seed_provider.local_book['p999999_b'] = qbid
         self.exchange.add_order_to_book(qbid)
-        self.exchange._add_order_to_history(qbid)
+        self.exchange.order_history.append(qbid)
         
     def makeSetup(self, prime1, lambda0):
         top_of_book = self.exchange.report_top_of_book(0)
@@ -268,23 +258,23 @@ if __name__ == '__main__':
     
     print(time.time())
     
-    settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
-                'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
-                'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
-                'PennyJumper': False, 'AlphaPJ': 0.05,
-                'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
-                'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 10.0, 'Lambda0': 100}
-    
-    for j in range(1, 11):
+    for j in range(5):
         random.seed(j)
         np.random.seed(j)
     
         start = time.time()
         
-        h5_root = 'python_traderid_%d' % j
-        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 2003\\'
+        h5_root = 'mm1_mongrel_all_%d_informed1' % j
+        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     
+        settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
+                    'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
+                    'InformedTrader': True, 'informedMaxQ': 1, 'informedRunLength': 1, 'iMu': 0.005,
+                    'PennyJumper': True, 'AlphaPJ': 0.05,
+                    'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
+                    'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
+        
         market1 = Runner(h5filename=h5_file, **settings)
 
         print('Run %d: %.2f minutes' % (j, (time.time() - start)/60))
