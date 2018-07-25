@@ -4,11 +4,11 @@ import time
 import numpy as np
 import pandas as pd
 
-import pyziabmc.trader as trader
-#import pyziabmc.traderc as trader
+#import pyziabmc.trader as trader
+import pyziabmc.traderc as trader
 
-import pyziabmc.orderbook as orderbook
-#import pyziabmc.orderbookc as orderbook
+#import pyziabmc.orderbook as orderbook
+import pyziabmc.orderbookc as orderbook
 
 
 class Runner(object):
@@ -285,7 +285,7 @@ if __name__ == '__main__':
     
         start = time.time()
         
-        h5_root = 'python_traderid_%d' % j
+        h5_root = 'cython_no_np_%d' % j
         h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 1001\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     
