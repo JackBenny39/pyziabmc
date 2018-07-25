@@ -5,7 +5,7 @@ import random
 import numpy as np
 cimport numpy as np
 
-from math import log
+from math import ceil, floor, log
 
 cimport cython
 
@@ -142,11 +142,11 @@ cdef class Provider5(Provider):
 
     cdef int _choose_price_from_exp(self, str buysell, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
-        cdef int plug = int(lambda_t*np.log(np.random.rand()))
+        cdef int plug = int(lambda_t*log(random.random()))
         if buysell == 'bid':
-            return np.int(5*np.floor((inside_price-1-plug)/5))
+            return int(5*floor((inside_price-1-plug)/5))
         else:
-            return np.int(5*np.ceil((inside_price+1+plug)/5))
+            return int(5*ceil((inside_price+1+plug)/5))
         
         
 cdef class MarketMaker(Provider):

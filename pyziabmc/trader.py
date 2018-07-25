@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 
-from math import log
+from math import ceil, floor, log
 
 
 class ZITrader:
@@ -131,11 +131,11 @@ class Provider5(Provider):
 
     def _choose_price_from_exp(self, side, inside_price, lambda_t):
         '''Prices chosen from an exponential distribution'''
-        plug = np.int(lambda_t*np.log(np.random.rand()))
+        plug = int(lambda_t*log(random.random()))
         if side == 'bid':
-            price = int(5*np.floor((inside_price-1-plug)/5))
+            price = int(5*floor((inside_price-1-plug)/5))
         else:
-            price = int(5*np.ceil((inside_price+1+plug)/5))
+            price = int(5*ceil((inside_price+1+plug)/5))
         return price
     
             
