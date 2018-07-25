@@ -5,6 +5,8 @@ import random
 import numpy as np
 cimport numpy as np
 
+from math import log
+
 cimport cython
 
 
@@ -92,17 +94,11 @@ cdef class Provider(ZITrader):
           
     cpdef bulk_cancel(self, int time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
-        cdef int i, idx
-        cdef list order_keys
-        cdef np.ndarray orders_to_delete
+        cdef unsigned int x
         self.cancel_collector.clear()
-        lob = len(self.local_book)
-        if lob > 0:
-            order_keys = list(self.local_book.keys())
-            orders_to_delete = np.random.ranf(lob)
-            for i, idx in enumerate(order_keys):
-                if orders_to_delete[i] < self._delta:
-                    self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(idx), time))
+        for x in self.local_book.keys():
+            if random.random() < self._delta:
+                self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(x), time))
                     
     cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
@@ -110,7 +106,7 @@ cdef class Provider(ZITrader):
         cdef str side, buysell
         cdef dict q
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_provider:
+        if random.random() < q_provider:
             buysell = 'bid'
             price = self._choose_price_from_exp(buysell, qsignal['best_ask'], lambda_t)
             side = 'buy'
@@ -124,8 +120,7 @@ cdef class Provider(ZITrader):
         
     cdef int _choose_price_from_exp(self, str buysell, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
-        cdef int plug
-        plug = np.int(lambda_t*np.log(np.random.rand()))
+        cdef int plug = int(lambda_t*log(random.random()))
         if buysell == 'bid':
             return inside_price-1-plug
         else:
@@ -147,8 +142,7 @@ cdef class Provider5(Provider):
 
     cdef int _choose_price_from_exp(self, str buysell, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
-        cdef int plug
-        plug = np.int(lambda_t*np.log(np.random.rand()))
+        cdef int plug = int(lambda_t*np.log(np.random.rand()))
         if buysell == 'bid':
             return np.int(5*np.floor((inside_price-1-plug)/5))
         else:
@@ -214,7 +208,7 @@ cdef class MarketMaker(Provider):
         cdef str side
         cdef dict q
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_provider:
+        if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 1
             prices = np.random.choice(range(max_bid_price-self._quote_range+1, max_bid_price+1), size=self._num_quotes)
             side = 'buy'
@@ -255,7 +249,7 @@ cdef class MarketMaker5(MarketMaker):
         cdef str side
         cdef dict q
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_provider:
+        if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 5
             prices = np.random.choice(range(max_bid_price-self._quote_range, max_bid_price+1, 5), size=self._num_quotes, p=self._p5bid)
             side = 'buy'
@@ -323,7 +317,7 @@ cdef class PennyJumper(ZITrader):
         self.cancel_collector.clear()
         if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
             # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
-            if random.uniform(0,1) < q_taker:
+            if random.random() < q_taker:
                 if self._bid_quote: # check if not alone at the bid
                     if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
                         self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
@@ -374,7 +368,7 @@ cdef class Taker(ZITrader):
         cdef str side
         cdef dict q
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_taker: # q_taker > 0.5 implies greater probability of a buy order
+        if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
             price = 2000000 # agent buys at max price (or better)
             side = 'buy'
         else:

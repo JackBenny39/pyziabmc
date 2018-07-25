@@ -25,7 +25,7 @@ if __name__ == '__main__':
     
         start = time.time()
     
-        h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\cython_traderid_%d.h5' % (trial_no, j)
+        h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\cython_updates_%d.h5' % (trial_no, j)
         
         market1 = runnerc.Runner(h5filename=h5_file, **settings)
 

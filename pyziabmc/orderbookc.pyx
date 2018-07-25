@@ -49,12 +49,10 @@ cdef class Orderbook:
         
     cpdef add_order_to_history(self, dict order):
         '''Add an order (dict) to order_history'''
-        cdef dict hist_order
         self._order_index += 1
-        hist_order = {'exid': self._order_index, 'order_id': order['order_id'], 'trader_id': order['trader_id'], 
-                      'timestamp': order['timestamp'], 'type': order['type'], 'quantity': order['quantity'], 
-                      'side': order['side'], 'price': order['price']}
-        self.order_history.append(hist_order)
+        self.order_history.append({'exid': self._order_index, 'order_id': order['order_id'], 'trader_id': order['trader_id'], 
+                                   'timestamp': order['timestamp'], 'type': order['type'], 'quantity': order['quantity'], 
+                                   'side': order['side'], 'price': order['price']})
         
     cpdef add_order_to_book(self, dict order):
         '''

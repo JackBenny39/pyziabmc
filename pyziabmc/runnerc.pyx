@@ -21,10 +21,10 @@ cdef class Runner(object):
     
     cdef public str h5filename
     cdef int mpi, write_interval, informedTrades
-    cdef unsigned run_steps
+    cdef int run_steps
     cdef list providers
     cdef bint provider, taker, informed, pj, marketmaker
-    cdef np.ndarray t_delta_p, provider_array, t_delta_t, taker_array, t_delta_m, marketmakers, q_take, lambda_t
+    cdef np.ndarray t_delta_p, provider_array, t_delta_t, taker_array, t_delta_m, marketmakers, q_take, lambda_t, takerTradeV
     cdef set t_delta_i
     cdef double q_provide, alpha_pj
     cdef dict liquidity_providers
@@ -47,8 +47,10 @@ cdef class Runner(object):
             self.t_delta_t, self.taker_array = self.buildTakers(kwargs['numTakers'], kwargs['takerMaxQ'], kwargs['tMu'])
         self.informed = kwargs.pop('InformedTrader')
         if self.informed:
-            informedTrades = np.int(kwargs['iMu']*np.sum(self.run_steps/self.t_delta_t) if self.taker else 1/kwargs['iMu'])
-            self.t_delta_i, self.informed_trader = self.buildInformedTrader(kwargs['informedMaxQ'], kwargs['informedRunLength'], informedTrades)
+            if self.taker:
+                takerTradeV = np.array([t.quantity for t in self.taker_array])
+            informedTrades = np.int(kwargs['iMu']*np.sum(takerTradeV*self.run_steps/self.t_delta_t) if self.taker else 1/kwargs['iMu'])
+            self.t_delta_i, self.informed_trader = self.buildInformedTrader(kwargs['informedMaxQ'], kwargs['informedRunLength'], informedTrades, prime1)
         self.pj = kwargs.pop('PennyJumper')
         if self.pj:
             self.pennyjumper = self.buildPennyJumper()
@@ -88,21 +90,21 @@ cdef class Runner(object):
         t_delta_t = np.floor(np.random.exponential(1/tMu, numTakers)+1)*taker_size
         return t_delta_t, takers
     
-    def buildInformedTrader(self, int informedMaxQ, int informedRunLength, int informedTrades):
+    def buildInformedTrader(self, int informedMaxQ, int informedRunLength, int informedTrades, prime1):
         informed = trader.InformedTrader(5000, informedMaxQ)
-        t_delta_i = np.random.choice(self.run_steps, size=np.int(informedTrades/(informedRunLength*informed.quantity)), replace=False)
-        if informedRunLength > 1:
-            stack1 = t_delta_i
-            s_length = len(t_delta_i)
-            for i in range(1, informedRunLength):
-                temp = t_delta_i+i
-                stack2 = np.unique(np.hstack((stack1, temp)))
-                repeats = (i+1)*s_length - len(set(stack2))
-                new_choice_set = set(range(self.run_steps)) - set(stack2)
-                extras = np.random.choice(list(new_choice_set), size=repeats, replace=False)
-                stack1 = np.hstack((stack2, extras))
-            t_delta_i = stack1
-        return set(t_delta_i), informed
+        numChoices = int(informedTrades/(informedRunLength*informed.quantity)) + 1
+        choiceRange = range(prime1, self.run_steps - informedRunLength + 1)
+        t_delta_i = set()
+        for _ in range(1, numChoices):
+            runL = 0
+            step = random.choice(choiceRange)
+            while runL < informedRunLength:
+                while step in t_delta_i:
+                    step += 1
+                t_delta_i.add(step)
+                step += 1
+                runL += 1
+        return t_delta_i, informed
     
     def buildPennyJumper(self):
         return trader.PennyJumper(4000, 1, self.mpi)
@@ -239,8 +241,8 @@ cdef class Runner(object):
             contra_side.confirm_trade_local(c)
     
     @cython.boundscheck(False)         
-    cdef runMcs(self, unsigned int prime1, int write_interval):
-        cdef unsigned int current_time
+    cdef runMcs(self, int prime1, int write_interval):
+        cdef int current_time
         cdef np.ndarray row
         cdef dict q
         cdef dict top_of_book = self.exchange.report_top_of_book(prime1)
@@ -267,8 +269,8 @@ cdef class Runner(object):
                 self.exchange.sip_to_h5(self.h5filename)
                 
     @cython.boundscheck(False)         
-    cdef runMcsPJ(self, unsigned int prime1, int write_interval):
-        cdef unsigned int current_time
+    cdef runMcsPJ(self, int prime1, int write_interval):
+        cdef int current_time
         cdef np.ndarray row
         cdef dict q, c
         cdef dict top_of_book = self.exchange.report_top_of_book(prime1)
@@ -311,30 +313,4 @@ cdef class Runner(object):
         for m in self.marketmakers:
             temp_df = pd.DataFrame(m.cash_flow_collector)
             temp_df.to_hdf(self.h5filename, 'mmp', append=True, format='table', complevel=5, complib='blosc')
-    
-    
-if __name__ == '__main__':
-    
-    j = 1
-    random.seed(j)
-    np.random.seed(j)
-    
-    start = time.time()
-    print(start)
-    
-    h5_root = 'mm1_cython_all_1'
-    h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\TempTests\\'
-    h5_file = '%s%s.h5' % (h5dir, h5_root)
-    
-    settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
-                'Taker': True, 'numTakers': 50, 'takerMaxQ': 1, 'tMu': 0.001,
-                'InformedTrader': False, 'informedMaxQ': 1, 'informedRunLength': 2, 'iMu': 0.01,
-                'PennyJumper': True, 'AlphaPJ': 0.05,
-                'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
-                'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 1.0, 'Lambda0': 100}
-        
-    market1 = Runner(h5filename=h5_file, **settings)
-
-    print('Run 2: %.2f minutes' % ((time.time() - start)/60))
-            
     
