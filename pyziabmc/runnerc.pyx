@@ -90,7 +90,7 @@ cdef class Runner(object):
         t_delta_t = np.floor(np.random.exponential(1/tMu, numTakers)+1)*taker_size
         return t_delta_t, takers
     
-    def buildInformedTrader(self, int informedMaxQ, int informedRunLength, int informedTrades):
+    def buildInformedTrader(self, int informedMaxQ, int informedRunLength, int informedTrades, prime1):
         informed = trader.InformedTrader(5000, informedMaxQ)
         numChoices = int(informedTrades/(informedRunLength*informed.quantity)) + 1
         choiceRange = range(prime1, self.run_steps - informedRunLength + 1)
