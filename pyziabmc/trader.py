@@ -86,18 +86,14 @@ class Provider(ZITrader):
     def bulk_cancel(self, time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
         self.cancel_collector.clear()
-        lob = len(self.local_book)
-        if lob > 0:
-            order_keys = list(self.local_book.keys())
-            orders_to_delete = np.random.ranf(lob)
-            for idx in range(lob):
-                if orders_to_delete[idx] < self._delta:
-                    self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(order_keys[idx]), time))
+        for x in self.local_book.keys():
+            if random.random() < self._delta:
+                self.cancel_collector.append(self._make_cancel_quote(self.local_book.get(x), time))
 
     def process_signal(self, time, qsignal, q_provider, lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_provider:
+        if random.random() < q_provider:
             price = self._choose_price_from_exp('bid', qsignal['best_ask'], lambda_t)
             side = 'buy'
         else:
@@ -110,7 +106,7 @@ class Provider(ZITrader):
     def _choose_price_from_exp(self, side, inside_price, lambda_t):
         '''Prices chosen from an exponential distribution'''
         # make pricing explicit for now. Logic scales for other mpi.
-        plug = np.int(lambda_t*np.log(np.random.rand()))
+        plug = int(lambda_t*np.log(np.random.rand()))
         if side == 'bid':
             price = inside_price-1-plug
         else:
@@ -135,9 +131,9 @@ class Provider5(Provider):
         '''Prices chosen from an exponential distribution'''
         plug = np.int(lambda_t*np.log(np.random.rand()))
         if side == 'bid':
-            price = np.int(5*np.floor((inside_price-1-plug)/5))
+            price = int(5*np.floor((inside_price-1-plug)/5))
         else:
-            price = np.int(5*np.ceil((inside_price+1+plug)/5))
+            price = int(5*np.ceil((inside_price+1+plug)/5))
         return price
     
             
@@ -196,7 +192,7 @@ class MarketMaker(Provider):
         ''' 
         # make pricing explicit for now. Logic scales for other mpi and quote ranges.
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_provider:
+        if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 1
             prices = np.random.choice(range(max_bid_price-self._quote_range+1, max_bid_price+1), size=self._num_quotes)
             side = 'buy'
@@ -233,7 +229,7 @@ class MarketMaker5(MarketMaker):
         MM never joins the best price if it has size=1.
         ''' 
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_provider:
+        if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 5
             prices = np.random.choice(range(max_bid_price-self._quote_range, max_bid_price+1, 5), size=self._num_quotes, p=self._p5bid)
             side = 'buy'
@@ -297,7 +293,7 @@ class PennyJumper(ZITrader):
         self.cancel_collector.clear()
         if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
             # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
-            if random.uniform(0,1) < q_taker:
+            if random.random() < q_taker:
                 if self._bid_quote: # check if not alone at the bid
                     if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
                         self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
@@ -346,7 +342,7 @@ class Taker(ZITrader):
     def process_signal(self, time, q_taker):
         '''Taker buys or sells with 50% probability.'''
         self.quote_collector.clear()
-        if random.uniform(0,1) < q_taker: # q_taker > 0.5 implies greater probability of a buy order
+        if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
             price = 2000000 # agent buys at max price (or better)
             side = 'buy'
         else:
