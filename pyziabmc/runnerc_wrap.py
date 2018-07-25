@@ -6,7 +6,7 @@ import numpy as np
 import pyziabmc.runnerc as runnerc
 
 end = 11
-trial_no = 2003
+trial_no = 1001
 #h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMSmallCapSum.h5' % trial_no
 
 settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
@@ -29,4 +29,4 @@ if __name__ == '__main__':
         
         market1 = runnerc.Runner(h5filename=h5_file, **settings)
 
-        print('Run %d: %.2f minutes' % (j, (time.time() - start)/60))
+        print('Run %d: %.1f seconds' % (j, time.time() - start))

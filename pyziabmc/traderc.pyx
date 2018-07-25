@@ -46,7 +46,7 @@ cdef class ZITrader:
         self._quote_sequence += 1
         cdef str qtype = 'add'
         return {'order_id': self._quote_sequence, 'trader_id': self.trader_id, 'timestamp': time, 
-                'type': 'add', 'quantity': self.quantity, 'side': side, 'price': price}
+                'type': qtype, 'quantity': self.quantity, 'side': side, 'price': price}
         
         
 cdef class Provider(ZITrader):
