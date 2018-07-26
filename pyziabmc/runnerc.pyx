@@ -292,7 +292,7 @@ cdef class Runner(object):
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
-                if random.uniform(0,1) < self.alpha_pj:
+                if random.random() < self.alpha_pj:
                     self.pennyjumper.process_signal(current_time, top_of_book, self.q_take[current_time])
                     if self.pennyjumper.cancel_collector:
                         for c in self.pennyjumper.cancel_collector:
