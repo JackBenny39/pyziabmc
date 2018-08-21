@@ -1,9 +1,5 @@
 # distutils: language = c++
 
-#from libcpp.list cimport list as clist
-#from libcpp.map cimport map
-#from libcpp.pair cimport pair
-
 import pandas as pd
 
 from cython.operator cimport postincrement as inc, postdecrement as dec, dereference as deref

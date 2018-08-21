@@ -1,3 +1,5 @@
+# distutils: language = c++
+
 import random
 
 import numpy as np
