@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 from math import ceil, floor, log
-from pyziabmc.shared import Side, OType
+from pyziabmc.sharedc cimport Side, OType
 
 
 class ZITrader:

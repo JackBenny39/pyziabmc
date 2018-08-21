@@ -7,7 +7,7 @@ import pandas as pd
 import pyziabmc.orderbookcpp as orderbook
 import pyziabmc.traderc as trader
 
-from pyziabmc.sharedc import Side, OType
+from pyziabmc.sharedc cimport Side, OType
 
 
 class Runner(object):
