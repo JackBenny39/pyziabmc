@@ -5,8 +5,7 @@ import numpy as np
 
 import pyziabmc.runnerc as runnerc
 
-end = 11
-trial_no = 1001
+
 #h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMSmallCapSum.h5' % trial_no
 
 settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0.0375, 'pDelta': 0.025, 'qProvide': 0.5,
@@ -19,13 +18,16 @@ settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0
 if __name__ == '__main__':
     
     print(time.time())
-    for j in range(1, end):
+    
+    for j in range(51, 61):
         random.seed(j)
         np.random.seed(j)
     
         start = time.time()
     
-        h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\cython_pyziabmc_%d.h5' % (trial_no, j)
+        h5_root = 'cython_pyziabmc_speedup_%d' % j
+        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 901\\'
+        h5_file = '%s%s.h5' % (h5dir, h5_root)
         
         market1 = runnerc.Runner(h5filename=h5_file, **settings)
 

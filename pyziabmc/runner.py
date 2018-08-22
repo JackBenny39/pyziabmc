@@ -4,11 +4,10 @@ import time
 import numpy as np
 import pandas as pd
 
-#import pyziabmc.trader as trader
-import pyziabmc.traderc as trader
+import pyziabmc.orderbook as orderbook
+import pyziabmc.trader as trader
 
-#import pyziabmc.orderbook as orderbook
-import pyziabmc.orderbookc as orderbook
+from pyziabmc.shared import Side, OType
 
 
 class Runner(object):
@@ -60,10 +59,7 @@ class Runner(object):
         ''' Providers id starts with 1
         '''
         providers_list = [1000 + i for i in range(numProviders)]
-        if self.mpi==1:
-            providers = np.array([trader.Provider(p, providerMaxQ, pDelta) for p in providers_list])
-        else:
-            providers = np.array([trader.Provider5(p, providerMaxQ, pDelta) for p in providers_list])
+        providers = np.array([trader.Provider(p, providerMaxQ, pDelta) for p in providers_list])
         provider_size = np.array([p.quantity for p in providers])
         t_delta_p = np.floor(np.random.exponential(1/pAlpha, numProviders)+1)*provider_size
         return t_delta_p, providers
@@ -104,10 +100,7 @@ class Runner(object):
         ''' MM id starts with 3
         '''
         marketmakers_list = [3000 + i for i in range(numMMs)]
-        if self.mpi==1:
-            marketmakers = np.array([trader.MarketMaker(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
-        else:
-            marketmakers = np.array([trader.MarketMaker5(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
+        marketmakers = np.array([trader.MarketMaker(p, mMMaxQ, mMDelta, mMQuotes, mMQuoteRange) for p in marketmakers_list])
         t_delta_m = np.array([m.quantity for m in marketmakers])
         return t_delta_m, marketmakers
     
@@ -142,10 +135,10 @@ class Runner(object):
         self.liquidity_providers.update({9999: seed_provider})
         ba = random.choice(range(1000005, 1002001, 5))
         bb = random.choice(range(997995, 999996, 5))
-        qask = {'order_id': 1, 'trader_id': 9999, 'timestamp': 0, 'type': 'add', 
-                'quantity': 1, 'side': 'sell', 'price': ba}
-        qbid = {'order_id': 2, 'trader_id': 9999, 'timestamp': 0, 'type': 'add',
-                'quantity': 1, 'side': 'buy', 'price': bb}
+        qask = {'order_id': 1, 'trader_id': 9999, 'timestamp': 0, 'type': OType.ADD, 
+                'quantity': 1, 'side': Side.ASK, 'price': ba}
+        qbid = {'order_id': 2, 'trader_id': 9999, 'timestamp': 0, 'type': OType.ADD,
+                'quantity': 1, 'side': Side.BID, 'price': bb}
         seed_provider.local_book[1] = qask
         self.exchange.add_order_to_book(qask)
         self.exchange.add_order_to_history(qask)
@@ -193,8 +186,6 @@ class Runner(object):
     def doCancels(self, trader):
         for c in trader.cancel_collector:
             self.exchange.process_order(c)
-            if self.exchange.confirm_modify_collector:
-                trader.confirm_cancel_local(self.exchange.confirm_modify_collector[0])
                     
     def confirmTrades(self):
         for c in self.exchange.confirm_trade_collector:
@@ -279,14 +270,14 @@ if __name__ == '__main__':
                 'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
                 'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 10.0, 'Lambda0': 100}
     
-    for j in range(1, 11):
+    for j in range(51, 61):
         random.seed(j)
         np.random.seed(j)
     
         start = time.time()
         
-        h5_root = 'cython_no_np_%d' % j
-        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 1001\\'
+        h5_root = 'python_pyziabmc_%d' % j
+        h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 901\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     
         market1 = Runner(h5filename=h5_file, **settings)
