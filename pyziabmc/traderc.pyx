@@ -3,12 +3,13 @@
 import random
 
 import numpy as np
+cimport numpy as np
 
 from math import ceil, floor, log
 from pyziabmc.sharedc cimport Side, OType
 
 
-class ZITrader:
+cdef class ZITrader:
     '''
     ZITrader generates quotes (dicts) based on mechanical probabilities.
     
@@ -17,7 +18,7 @@ class ZITrader:
     Public methods: none
     '''
 
-    def __init__(self, name, maxq):
+    def __init__(self, int name, int maxq):
         '''
         Initialize ZITrader with some base class attributes and a method
         
@@ -36,19 +37,19 @@ class ZITrader:
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity]))
     
-    def _make_q(self, maxq):
+    cdef int _make_q(self, int maxq):
         '''Determine order size'''
-        default_arr = np.array([1, 5, 10, 25, 50])
+        cdef np.ndarray default_arr = np.array([1, 5, 10, 25, 50], dtype=np.int)
         return random.choice(default_arr[default_arr<=maxq])
     
-    def _make_add_quote(self, time, side, price):
+    cdef dict _make_add_quote(self, int time, Side side, int price):
         '''Make one add quote (dict)'''
         self._quote_sequence += 1
         return {'order_id': self._quote_sequence, 'trader_id': self.trader_id, 'timestamp': time, 
                 'type': OType.ADD, 'quantity': self.quantity, 'side': side, 'price': price}
         
         
-class Provider(ZITrader):
+cdef class Provider(ZITrader):
     '''
     Provider generates quotes (dicts) based on make probability.
     
@@ -57,7 +58,7 @@ class Provider(ZITrader):
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
         
-    def __init__(self, name, maxq, delta):
+    def __init__(self, int name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
@@ -74,77 +75,74 @@ class Provider(ZITrader):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._delta]))
     
-    def _make_cancel_quote(self, q, time):
+    cdef dict _make_cancel_quote(self, dict q, int time):
         return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
                 'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
-        
-    def confirm_cancel_local(self, oid):
-        del self.local_book[oid]
 
-    def confirm_trade_local(self, confirm):
+    cpdef confirm_trade_local(self, dict confirm):
         to_modify = self.local_book[confirm['order_id']]
         if confirm['quantity'] == to_modify['quantity']:
-            self.confirm_cancel_local(to_modify['order_id'])
+            del self.local_book[to_modify['order_id']]
         else:
             self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
             
-    def bulk_cancel(self, time):
+    cpdef bulk_cancel(self, int time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
         self.cancel_collector.clear()
         for x in self.local_book.keys():
             if random.random() < self._delta:
                 self.cancel_collector.append(self._make_cancel_quote(self.local_book[x], time))
         for c in self.cancel_collector:        
-            self.confirm_cancel_local(c['order_id'])
+            del self.local_book[c['order_id']]
 
-    def process_signal(self, time, qsignal, q_provider, lambda_t):
+    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
+        cdef int price
+        cdef Side side
+        cdef dict q
         self.quote_collector.clear()
         if random.random() < q_provider:
             side = Side.BID
-            price = self._choose_price_from_exp(side, qsignal['best_ask'], lambda_t)
+            price = self._choose_price_from_exp(side, qsignal['best_ask'], lambda_t)  
         else:
             side = Side.ASK
             price = self._choose_price_from_exp(side, qsignal['best_bid'], lambda_t)
         q = self._make_add_quote(time, side, price)
         self.local_book[q['order_id']] = q
-        self.quote_collector.append(q)            
-      
-    def _choose_price_from_exp(self, side, inside_price, lambda_t):
+        self.quote_collector.append(q)
+        
+    cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
-        # make pricing explicit for now. Logic scales for other mpi.
-        plug = int(lambda_t*log(random.random()))
+        cdef int plug = int(lambda_t*log(random.random()))
         if side == Side.BID:
-            price = inside_price-1-plug
+            return inside_price-1-plug
         else:
-            price = inside_price+1+plug
-        return price
+            return inside_price+1+plug
     
     
-class Provider5(Provider):
+cdef class Provider5(Provider):
     '''
     Provider5 generates quotes (dicts) based on make probability.
     
     Subclass of Provider
     '''
 
-    def __init__(self, name, maxq, delta):
+    def __init__(self, int name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
-        Provider.__init__(self, name, maxq, delta)
+        super().__init__(name, maxq, delta)
 
-    def _choose_price_from_exp(self, side, inside_price, lambda_t):
+    cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
-        plug = int(lambda_t*log(random.random()))
+        cdef int plug = int(lambda_t*log(random.random()))
         if side == Side.BID:
-            price = int(5*floor((inside_price-1-plug)/5))
+            return int(5*floor((inside_price-1-plug)/5))
         else:
-            price = int(5*ceil((inside_price+1+plug)/5))
-        return price
+            return int(5*ceil((inside_price+1+plug)/5))
     
             
-class MarketMaker(Provider):
+cdef class MarketMaker(Provider):
     '''
     MarketMaker generates a series of quotes near the inside (dicts) based on make probability.
     
@@ -154,7 +152,7 @@ class MarketMaker(Provider):
     Public methods: confirm_cancel_local (from Provider), confirm_trade_local, process_signal 
     '''
 
-    def __init__(self, name, maxq, delta, num_quotes, quote_range):
+    def __init__(self, int name, int maxq, double delta, int num_quotes, int quote_range):
         '''_num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
@@ -173,7 +171,7 @@ class MarketMaker(Provider):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range]))
             
-    def confirm_trade_local(self, confirm):
+    cpdef confirm_trade_local(self, dict confirm):
         '''Modify _cash_flow and _position; update the local_book'''
         if confirm['side'] == Side.BID:
             self._cash_flow -= confirm['price']*confirm['quantity']
@@ -183,21 +181,24 @@ class MarketMaker(Provider):
             self._position -= confirm['quantity']
         to_modify = self.local_book[confirm['order_id']]
         if confirm['quantity'] == to_modify['quantity']:
-            self.confirm_cancel_local(to_modify['order_id'])
+            del self.local_book[to_modify['order_id']]
         else:
             self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
         self._cumulate_cashflow(confirm['timestamp'])
          
-    def _cumulate_cashflow(self, timestamp):
+    cdef void _cumulate_cashflow(self, int timestamp):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
             
-    def process_signal(self, time, qsignal, q_provider, *args):
+    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
         ''' 
-        # make pricing explicit for now. Logic scales for other mpi and quote ranges.
+        cdef int max_bid_price, min_ask_price, price
+        cdef np.ndarray prices
+        cdef Side side
+        cdef dict q
         self.quote_collector.clear()
         if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 1
@@ -213,7 +214,7 @@ class MarketMaker(Provider):
             self.quote_collector.append(q)
             
             
-class MarketMaker5(MarketMaker):
+cdef class MarketMaker5(MarketMaker):
     '''
     MarketMaker5 generates a series of quotes near the inside (dicts) based on make probability.
     
@@ -226,15 +227,19 @@ class MarketMaker5(MarketMaker):
         _num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
-        MarketMaker.__init__(self, name, maxq, delta, num_quotes, quote_range)
-        self._p5ask = [1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30]
-        self._p5bid = [1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20]
+        super().__init__(name, maxq, delta, num_quotes, quote_range)
+        self._p5ask = np.array([1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30])
+        self._p5bid = np.array([1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20])
                
-    def process_signal(self, time, qsignal, q_provider, *args):
+    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
         ''' 
+        cdef int max_bid_price, min_ask_price, price
+        cdef np.ndarray prices
+        cdef Side side
+        cdef dict q
         self.quote_collector.clear()
         if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 5
@@ -250,7 +255,7 @@ class MarketMaker5(MarketMaker):
             self.quote_collector.append(q)
             
 
-class PennyJumper(ZITrader):
+cdef class PennyJumper(ZITrader):
     '''
     PennyJumper jumps in front of best quotes when possible
     
@@ -259,7 +264,7 @@ class PennyJumper(ZITrader):
     Public methods: confirm_trade_local (from ZITrader)
     '''
     
-    def __init__(self, name, maxq, mpi):
+    def __init__(self, int name, int maxq, int mpi):
         '''
         Initialize PennyJumper
         
@@ -281,18 +286,18 @@ class PennyJumper(ZITrader):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
-    def _make_cancel_quote(self, q, time):
+    cdef dict _make_cancel_quote(self, dict q, int time):
         return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
                 'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
 
-    def confirm_trade_local(self, confirm):
+    cpdef confirm_trade_local(self, dict confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
         if confirm['side'] == Side.BID:
             self._bid_quote = None
         else:
             self._ask_quote = None
             
-    def process_signal(self, time, qsignal, q_taker):
+    cpdef process_signal(self, int time, dict qsignal, double q_taker):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
         point inside the current quotes.
         '''
@@ -306,22 +311,20 @@ class PennyJumper(ZITrader):
                         self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
                         self._bid_quote = None
                 if not self._bid_quote:
-                    price = qsignal['best_bid'] + self._mpi
-                    side = Side.BID
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._bid_quote = q
+                    #price = qsignal['best_bid'] + self._mpi
+                    #side = Side.BID
+                    self._bid_quote = self._make_add_quote(time, Side.BID, qsignal['best_bid'] + self._mpi)
+                    self.quote_collector.append(self._bid_quote)
             else:
                 if self._ask_quote: # check if not alone at the ask
                     if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
                         self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
                         self._ask_quote = None
                 if not self._ask_quote:
-                    price = qsignal['best_ask'] - self._mpi
-                    side = Side.ASK
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._ask_quote = q
+                    #price = qsignal['best_ask'] - self._mpi
+                    #side = Side.ASK
+                    self._ask_quote = self._make_add_quote(time, Side.ASK, qsignal['best_ask'] - self._mpi)
+                    self.quote_collector.append(self._ask_quote)
         else: # spread = mpi
             if self._bid_quote: # check if not alone at the bid
                 if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
@@ -333,7 +336,7 @@ class PennyJumper(ZITrader):
                     self._ask_quote = None
                               
 
-class Taker(ZITrader):
+cdef class Taker(ZITrader):
     '''
     Taker generates quotes (dicts) based on take probability.
         
@@ -342,24 +345,20 @@ class Taker(ZITrader):
     Public methods: process_signal 
     '''
 
-    def __init__(self, name, maxq):
+    def __init__(self, int name, int maxq):
         super().__init__(name, maxq)
         self.trader_type = 'Taker'
         
-    def process_signal(self, time, q_taker):
+    cpdef process_signal(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
         self.quote_collector.clear()
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
-            price = 2000000 # agent buys at max price (or better)
-            side = Side.BID
+            self.quote_collector.append(self._make_add_quote(time, Side.BID, 2000000))
         else:
-            price = 0 # agent sells at min price (or better)
-            side = Side.ASK
-        q = self._make_add_quote(time, side, price)
-        self.quote_collector.append(q)
+            self.quote_collector.append(self._make_add_quote(time, Side.ASK, 0))
         
         
-class InformedTrader(ZITrader):
+cdef class InformedTrader(ZITrader):
     '''
     InformedTrader generates quotes (dicts) based upon a fixed direction
     
@@ -368,14 +367,13 @@ class InformedTrader(ZITrader):
     Public methods: process_signal
     '''
     
-    def __init__(self, name, maxq):
-        ZITrader.__init__(self, name, maxq)
+    def __init__(self, int name, int maxq):
+        super().__init__(name, maxq)
         self.trader_type = 'InformedTrader'
-        self._side = random.choice(['buy', 'sell'])
-        self._price = 0 if self._side == 'sell' else 2000000
+        self._side = random.choice([Side.BID, Side.ASK])
+        self._price = 0 if self._side == Side.ASK else 2000000
         
-    def process_signal(self, time, *args):
+    cpdef process_signal(self, int time, double q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         self.quote_collector.clear()
-        q = self._make_add_quote(time, self._side, self._price)
-        self.quote_collector.append(q)
+        self.quote_collector.append(self._make_add_quote(time, self._side, self._price))
