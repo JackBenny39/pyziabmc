@@ -353,15 +353,9 @@ cdef class Taker(ZITrader):
         '''Taker buys or sells with 50% probability.'''
         self.quote_collector.clear()
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
-            q = self._make_add_quote(time, Side.BID, 2000000)
-            #price = 2000000 # agent buys at max price (or better)
-            #side = Side.BID
+            self.quote_collector.append(self._make_add_quote(time, Side.BID, 2000000))
         else:
-            q = self._make_add_quote(time, Side.ASK, 0)
-            #price = 0 # agent sells at min price (or better)
-            #side = Side.ASK
-        #q = self._make_add_quote(time, side, price)
-        self.quote_collector.append(q)
+            self.quote_collector.append(self._make_add_quote(time, Side.ASK, 0))
         
         
 cdef class InformedTrader(ZITrader):
@@ -382,5 +376,4 @@ cdef class InformedTrader(ZITrader):
     cpdef process_signal(self, int time, double q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         self.quote_collector.clear()
-        #q = self._make_add_quote(time, self._side, self._price)
         self.quote_collector.append(self._make_add_quote(time, self._side, self._price))
