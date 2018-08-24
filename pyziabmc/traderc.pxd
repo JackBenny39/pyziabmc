@@ -1,9 +1,11 @@
 cimport numpy as np
-from pyziabmc.sharedc cimport Side
+from pyziabmc.sharedc cimport Side, TType
+
+cdef TType trader_type
 
 
 cdef class ZITrader:
-    cdef public str trader_type
+
     cdef public int trader_id, quantity
     cdef int _quote_sequence
     cdef public list quote_collector
@@ -13,6 +15,7 @@ cdef class ZITrader:
  
     
 cdef class Provider(ZITrader):
+
     cdef double _delta
     cdef public list cancel_collector
     cdef public dict local_book
@@ -30,6 +33,7 @@ cdef class Provider5(Provider):
     
     
 cdef class MarketMaker(Provider):
+    
     cdef int _num_quotes, _quote_range, _position, _cash_flow
     cdef public list cash_flow_collector
     
@@ -39,12 +43,14 @@ cdef class MarketMaker(Provider):
     
     
 cdef class MarketMaker5(MarketMaker):
+    
     cdef np.ndarray _p5ask, _p5bid
     
     cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t)
     
     
 cdef class PennyJumper(ZITrader):
+    
     cdef int _mpi
     cdef public list cancel_collector
     cdef dict _ask_quote, _bid_quote
@@ -60,6 +66,7 @@ cdef class Taker(ZITrader):
     
     
 cdef class InformedTrader(ZITrader):
+    
     cdef Side _side
     cdef int _price
     
