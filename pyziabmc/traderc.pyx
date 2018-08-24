@@ -255,7 +255,7 @@ cdef class MarketMaker5(MarketMaker):
             self.quote_collector.append(q)
             
 
-class PennyJumper(ZITrader):
+cdef class PennyJumper(ZITrader):
     '''
     PennyJumper jumps in front of best quotes when possible
     
@@ -264,7 +264,7 @@ class PennyJumper(ZITrader):
     Public methods: confirm_trade_local (from ZITrader)
     '''
     
-    def __init__(self, name, maxq, mpi):
+    def __init__(self, int name, int maxq, int mpi):
         '''
         Initialize PennyJumper
         
@@ -286,18 +286,18 @@ class PennyJumper(ZITrader):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
-    def _make_cancel_quote(self, q, time):
+    cdef dict _make_cancel_quote(self, dict q, int time):
         return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
                 'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
 
-    def confirm_trade_local(self, confirm):
+    cpdef confirm_trade_local(self, dict confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
         if confirm['side'] == Side.BID:
             self._bid_quote = None
         else:
             self._ask_quote = None
             
-    def process_signal(self, time, qsignal, q_taker):
+    cpdef process_signal(self, int time, dict qsignal, double q_taker):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
         point inside the current quotes.
         '''
@@ -311,22 +311,20 @@ class PennyJumper(ZITrader):
                         self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
                         self._bid_quote = None
                 if not self._bid_quote:
-                    price = qsignal['best_bid'] + self._mpi
-                    side = Side.BID
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._bid_quote = q
+                    #price = qsignal['best_bid'] + self._mpi
+                    #side = Side.BID
+                    self._bid_quote = self._make_add_quote(time, Side.BID, qsignal['best_bid'] + self._mpi)
+                    self.quote_collector.append(self._bid_quote)
             else:
                 if self._ask_quote: # check if not alone at the ask
                     if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
                         self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
                         self._ask_quote = None
                 if not self._ask_quote:
-                    price = qsignal['best_ask'] - self._mpi
-                    side = Side.ASK
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._ask_quote = q
+                    #price = qsignal['best_ask'] - self._mpi
+                    #side = Side.ASK
+                    self._ask_quote = self._make_add_quote(time, Side.ASK, qsignal['best_ask'] - self._mpi)
+                    self.quote_collector.append(self._ask_quote)
         else: # spread = mpi
             if self._bid_quote: # check if not alone at the bid
                 if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
@@ -338,7 +336,7 @@ class PennyJumper(ZITrader):
                     self._ask_quote = None
                               
 
-class Taker(ZITrader):
+cdef class Taker(ZITrader):
     '''
     Taker generates quotes (dicts) based on take probability.
         
@@ -347,24 +345,26 @@ class Taker(ZITrader):
     Public methods: process_signal 
     '''
 
-    def __init__(self, name, maxq):
+    def __init__(self, int name, int maxq):
         super().__init__(name, maxq)
         self.trader_type = 'Taker'
         
-    def process_signal(self, time, q_taker):
+    cpdef process_signal(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
         self.quote_collector.clear()
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
-            price = 2000000 # agent buys at max price (or better)
-            side = Side.BID
+            q = self._make_add_quote(time, Side.BID, 2000000)
+            #price = 2000000 # agent buys at max price (or better)
+            #side = Side.BID
         else:
-            price = 0 # agent sells at min price (or better)
-            side = Side.ASK
-        q = self._make_add_quote(time, side, price)
+            q = self._make_add_quote(time, Side.ASK, 0)
+            #price = 0 # agent sells at min price (or better)
+            #side = Side.ASK
+        #q = self._make_add_quote(time, side, price)
         self.quote_collector.append(q)
         
         
-class InformedTrader(ZITrader):
+cdef class InformedTrader(ZITrader):
     '''
     InformedTrader generates quotes (dicts) based upon a fixed direction
     
@@ -373,14 +373,14 @@ class InformedTrader(ZITrader):
     Public methods: process_signal
     '''
     
-    def __init__(self, name, maxq):
-        ZITrader.__init__(self, name, maxq)
+    def __init__(self, int name, int maxq):
+        super().__init__(name, maxq)
         self.trader_type = 'InformedTrader'
-        self._side = random.choice(['buy', 'sell'])
-        self._price = 0 if self._side == 'sell' else 2000000
+        self._side = random.choice([Side.BID, Side.ASK])
+        self._price = 0 if self._side == Side.ASK else 2000000
         
-    def process_signal(self, time, *args):
+    cpdef process_signal(self, int time, double q_taker):
         '''InformedTrader buys or sells pre-specified attribute.'''
         self.quote_collector.clear()
-        q = self._make_add_quote(time, self._side, self._price)
-        self.quote_collector.append(q)
+        #q = self._make_add_quote(time, self._side, self._price)
+        self.quote_collector.append(self._make_add_quote(time, self._side, self._price))
