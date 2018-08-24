@@ -75,14 +75,11 @@ class Provider(ZITrader):
     def _make_cancel_quote(self, q, time):
         return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
                 'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
-        
-    def confirm_cancel_local(self, oid):
-        del self.local_book[oid]
 
     def confirm_trade_local(self, confirm):
         to_modify = self.local_book[confirm['order_id']]
         if confirm['quantity'] == to_modify['quantity']:
-            self.confirm_cancel_local(to_modify['order_id'])
+            del self.local_book[to_modify['order_id']]
         else:
             self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
             
@@ -93,7 +90,7 @@ class Provider(ZITrader):
             if random.random() < self._delta:
                 self.cancel_collector.append(self._make_cancel_quote(self.local_book[x], time))
         for c in self.cancel_collector:        
-            self.confirm_cancel_local(c['order_id'])
+            del self.local_book[c['order_id']]
 
     def process_signal(self, time, qsignal, q_provider, lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
@@ -113,10 +110,9 @@ class Provider(ZITrader):
         # make pricing explicit for now. Logic scales for other mpi.
         plug = int(lambda_t*log(random.random()))
         if side == Side.BID:
-            price = inside_price-1-plug
+            return inside_price-1-plug
         else:
-            price = inside_price+1+plug
-        return price
+            return inside_price+1+plug
     
     
 class Provider5(Provider):
@@ -181,7 +177,7 @@ class MarketMaker(Provider):
             self._position -= confirm['quantity']
         to_modify = self.local_book[confirm['order_id']]
         if confirm['quantity'] == to_modify['quantity']:
-            self.confirm_cancel_local(to_modify['order_id'])
+            del self.local_book[to_modify['order_id']]
         else:
             self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
         self._cumulate_cashflow(confirm['timestamp'])
@@ -306,9 +302,8 @@ class PennyJumper(ZITrader):
                 if not self._bid_quote:
                     price = qsignal['best_bid'] + self._mpi
                     side = Side.BID
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._bid_quote = q
+                    self._bid_quote = self._make_add_quote(time, side, price)
+                    self.quote_collector.append(self._bid_quote)
             else:
                 if self._ask_quote: # check if not alone at the ask
                     if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
@@ -317,9 +312,8 @@ class PennyJumper(ZITrader):
                 if not self._ask_quote:
                     price = qsignal['best_ask'] - self._mpi
                     side = Side.ASK
-                    q = self._make_add_quote(time, side, price)
-                    self.quote_collector.append(q)
-                    self._ask_quote = q
+                    self._ask_quote = self._make_add_quote(time, side, price)
+                    self.quote_collector.append(self._ask_quote)
         else: # spread = mpi
             if self._bid_quote: # check if not alone at the bid
                 if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
