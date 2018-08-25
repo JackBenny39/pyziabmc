@@ -23,7 +23,7 @@ cdef class Provider(ZITrader):
     cdef dict _make_cancel_quote(self, dict q, int time)
     cpdef confirm_trade_local(self, dict confirm)
     cpdef bulk_cancel(self, int time)
-    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t)
+    cpdef dict process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t)
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t)
     
     
@@ -39,14 +39,14 @@ cdef class MarketMaker(Provider):
     
     cpdef confirm_trade_local(self, dict confirm)
     cdef void _cumulate_cashflow(self, int timestamp)
-    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t)
+    cpdef process_signalm(self, int time, dict qsignal, double q_provider)
     
     
 cdef class MarketMaker5(MarketMaker):
     
     cdef np.ndarray _p5ask, _p5bid
     
-    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t)
+    cpdef process_signalm(self, int time, dict qsignal, double q_provider)
     
     
 cdef class PennyJumper(ZITrader):
@@ -57,12 +57,12 @@ cdef class PennyJumper(ZITrader):
     
     cdef dict _make_cancel_quote(self, dict q, int time)
     cpdef confirm_trade_local(self, dict confirm)
-    cpdef process_signal(self, int time, dict qsignal, double q_taker)
+    cpdef process_signalj(self, int time, dict qsignal, double q_taker)
     
     
 cdef class Taker(ZITrader):
     
-    cpdef process_signal(self, int time, double q_taker)
+    cpdef dict process_signalt(self, int time, double q_taker)
     
     
 cdef class InformedTrader(ZITrader):
@@ -70,5 +70,5 @@ cdef class InformedTrader(ZITrader):
     cdef Side _side
     cdef int _price
     
-    cpdef process_signal(self, int time, double q_taker)
+    cpdef dict process_signali(self, int time)
     

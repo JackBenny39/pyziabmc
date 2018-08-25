@@ -25,7 +25,6 @@ class Runner(object):
             self.t_delta_p, self.provider_array = self.buildProviders(kwargs['numProviders'], kwargs['providerMaxQ'],
                                                                       kwargs['pAlpha'], kwargs['pDelta'])
             self.q_provide = kwargs['qProvide']
-            self.providers.append(TType.Provider)
         self.taker = kwargs.pop('Taker')
         if self.taker:
             self.t_delta_t, self.taker_array = self.buildTakers(kwargs['numTakers'], kwargs['takerMaxQ'], kwargs['tMu'])
@@ -43,7 +42,6 @@ class Runner(object):
         if self.marketmaker:
             self.t_delta_m, self.marketmakers = self.buildMarketMakers(kwargs['MMMaxQ'], kwargs['NumMMs'], kwargs['MMQuotes'], 
                                                                        kwargs['MMQuoteRange'], kwargs['MMDelta'])
-            self.providers.append(TType.MarketMaker)
         self.q_take, self.lambda_t = self.makeQTake(kwargs['QTake'], kwargs['Lambda0'], kwargs['WhiteNoise'], kwargs['CLambda'])
         self.liquidity_providers = self.makeLiquidityProviders()
         self.seedOrderbook()
@@ -152,8 +150,7 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(0)
         for current_time in range(1, prime1):
             for p in self.makeProviders(current_time):
-                p.process_signal(current_time, top_of_book, self.q_provide, -lambda0)
-                self.exchange.process_order(p.quote_collector[-1])
+                self.exchange.process_order(p.process_signalp(current_time, top_of_book, self.q_provide, -lambda0))
                 top_of_book = self.exchange.report_top_of_book(current_time)
                 
     def makeProviders(self, step):
@@ -198,9 +195,17 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
-                if row[0].trader_type in self.providers:
+                if row[0].trader_type == TType.Provider:
                     if row[1]:
-                        row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
+                        self.exchange.process_order(row[0].process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                    row[0].bulk_cancel(current_time)
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.MarketMaker:
+                    if row[1]:
+                        row[0].process_signalm(current_time, top_of_book, self.q_provide)
                         for q in row[0].quote_collector:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -208,9 +213,13 @@ class Runner(object):
                     if row[0].cancel_collector:
                         self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.Taker:
+                    self.exchange.process_order(row[0].process_signalt(current_time, self.q_take[current_time]))
+                    if self.exchange.traded:
+                        self.confirmTrades()
+                        top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
-                    row[0].process_signal(current_time, self.q_take[current_time])
-                    self.exchange.process_order(row[0].quote_collector[-1])
+                    self.exchange.process_order(row[0].process_signali(current_time))
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -222,9 +231,17 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
-                if row[0].trader_type in self.providers:
+                if row[0].trader_type == TType.Provider:
                     if row[1]:
-                        row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
+                        self.exchange.process_order(row[0].process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                    row[0].bulk_cancel(current_time)
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.MarketMaker:
+                    if row[1]:
+                        row[0].process_signalm(current_time, top_of_book, self.q_provide)
                         for q in row[0].quote_collector:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -232,14 +249,18 @@ class Runner(object):
                     if row[0].cancel_collector:
                         self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.Taker:
+                    self.exchange.process_order(row[0].process_signalt(current_time, self.q_take[current_time]))
+                    if self.exchange.traded:
+                        self.confirmTrades()
+                        top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
-                    row[0].process_signal(current_time, self.q_take[current_time])
-                    self.exchange.process_order(row[0].quote_collector[-1])
+                    self.exchange.process_order(row[0].process_signali(current_time))
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 if random.random() < self.alpha_pj:
-                    self.pennyjumper.process_signal(current_time, top_of_book, self.q_take[current_time])
+                    self.pennyjumper.process_signalj(current_time, top_of_book, self.q_take[current_time])
                     if self.pennyjumper.cancel_collector:
                         for c in self.pennyjumper.cancel_collector:
                             self.exchange.process_order(c)

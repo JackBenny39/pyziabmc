@@ -23,7 +23,6 @@ class Runner(object):
             self.t_delta_p, self.provider_array = self.buildProviders(kwargs['numProviders'], kwargs['providerMaxQ'],
                                                                       kwargs['pAlpha'], kwargs['pDelta'])
             self.q_provide = kwargs['qProvide']
-            self.providers.append(TType.Provider)
         self.taker = kwargs.pop('Taker')
         if self.taker:
             self.t_delta_t, self.taker_array = self.buildTakers(kwargs['numTakers'], kwargs['takerMaxQ'], kwargs['tMu'])
@@ -41,7 +40,6 @@ class Runner(object):
         if self.marketmaker:
             self.t_delta_m, self.marketmakers = self.buildMarketMakers(kwargs['MMMaxQ'], kwargs['NumMMs'], kwargs['MMQuotes'], 
                                                                        kwargs['MMQuoteRange'], kwargs['MMDelta'])
-            self.providers.append(TType.MarketMaker)
         self.q_take, self.lambda_t = self.makeQTake(kwargs['QTake'], kwargs['Lambda0'], kwargs['WhiteNoise'], kwargs['CLambda'])
         self.liquidity_providers = self.makeLiquidityProviders()
         self.seedOrderbook()

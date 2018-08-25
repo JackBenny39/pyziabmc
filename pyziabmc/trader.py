@@ -132,10 +132,9 @@ class Provider5(Provider):
         '''Prices chosen from an exponential distribution'''
         plug = int(lambda_t*log(random.random()))
         if side == Side.BID:
-            price = int(5*floor((inside_price-1-plug)/5))
+            return int(5*floor((inside_price-1-plug)/5))
         else:
-            price = int(5*ceil((inside_price+1+plug)/5))
-        return price
+            return int(5*ceil((inside_price+1+plug)/5))
     
             
 class MarketMaker(Provider):
