@@ -5,7 +5,7 @@ import random
 import numpy as np
 cimport numpy as np
 
-from math import ceil, floor, log
+from libc.math cimport ceil, floor, log
 from pyziabmc.sharedc cimport Side, OType, TType
 
 
@@ -95,7 +95,7 @@ cdef class Provider(ZITrader):
         for c in self.cancel_collector:        
             del self.local_book[c['order_id']]
 
-    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
+    cpdef dict process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
         cdef int price
         cdef Side side
@@ -109,7 +109,7 @@ cdef class Provider(ZITrader):
             price = self._choose_price_from_exp(side, qsignal['best_bid'], lambda_t)
         q = self._make_add_quote(time, side, price)
         self.local_book[q['order_id']] = q
-        self.quote_collector.append(q)
+        return q
         
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -190,7 +190,7 @@ cdef class MarketMaker(Provider):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
             
-    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
+    cpdef process_signalm(self, int time, dict qsignal, double q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -231,7 +231,7 @@ cdef class MarketMaker5(MarketMaker):
         self._p5ask = np.array([1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30])
         self._p5bid = np.array([1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20])
                
-    cpdef process_signal(self, int time, dict qsignal, double q_provider, double lambda_t):
+    cpdef process_signalm(self, int time, dict qsignal, double q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -297,7 +297,7 @@ cdef class PennyJumper(ZITrader):
         else:
             self._ask_quote = None
             
-    cpdef process_signal(self, int time, dict qsignal, double q_taker):
+    cpdef process_signalj(self, int time, dict qsignal, double q_taker):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
         point inside the current quotes.
         '''
@@ -349,13 +349,13 @@ cdef class Taker(ZITrader):
     def __init__(self, int name, int maxq):
         super().__init__(name, maxq)
         
-    cpdef process_signal(self, int time, double q_taker):
+    cpdef dict process_signalt(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
         self.quote_collector.clear()
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
-            self.quote_collector.append(self._make_add_quote(time, Side.BID, 2000000))
+            return self._make_add_quote(time, Side.BID, 2000000)
         else:
-            self.quote_collector.append(self._make_add_quote(time, Side.ASK, 0))
+            return self._make_add_quote(time, Side.ASK, 0)
         
         
 cdef class InformedTrader(ZITrader):
@@ -373,7 +373,7 @@ cdef class InformedTrader(ZITrader):
         self._side = random.choice([Side.BID, Side.ASK])
         self._price = 0 if self._side == Side.ASK else 2000000
         
-    cpdef process_signal(self, int time, double q_taker):
+    cpdef dict process_signali(self, int time):
         '''InformedTrader buys or sells pre-specified attribute.'''
         self.quote_collector.clear()
-        self.quote_collector.append(self._make_add_quote(time, self._side, self._price))
+        return self._make_add_quote(time, self._side, self._price)
