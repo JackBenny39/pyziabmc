@@ -6,7 +6,7 @@ import numpy as np
 cimport numpy as np
 
 from math import ceil, floor, log
-from pyziabmc.sharedc cimport Side, OType
+from pyziabmc.sharedc cimport Side, OType, TType
 
 
 cdef class ZITrader:
@@ -17,6 +17,7 @@ cdef class ZITrader:
     Public attributes: quote_collector
     Public methods: none
     '''
+    trader_type = TType.ZITrader
 
     def __init__(self, int name, int maxq):
         '''
@@ -25,7 +26,6 @@ cdef class ZITrader:
         quote_collector is a public container for carrying quotes to the exchange
         '''
         self.trader_id = name # trader id
-        self.trader_type = 'ZITrader'
         self.quantity = self._make_q(maxq)
         self.quote_collector = []
         self._quote_sequence = 0
@@ -57,13 +57,13 @@ cdef class Provider(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector, local_book
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
+    trader_type = TType.Provider
         
     def __init__(self, int name, int maxq, double delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         super().__init__(name, maxq)
-        self.trader_type = 'Provider'
         self._delta = delta
         self.local_book = {}
         self.cancel_collector = []
@@ -151,13 +151,13 @@ cdef class MarketMaker(Provider):
     cash_flow_collector
     Public methods: confirm_cancel_local (from Provider), confirm_trade_local, process_signal 
     '''
+    trader_type = TType.MarketMaker
 
     def __init__(self, int name, int maxq, double delta, int num_quotes, int quote_range):
         '''_num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
         super().__init__(name, maxq, delta)
-        self.trader_type = 'MarketMaker'
         self._num_quotes = num_quotes
         self._quote_range = quote_range
         self._position = 0
@@ -263,6 +263,7 @@ cdef class PennyJumper(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector
     Public methods: confirm_trade_local (from ZITrader)
     '''
+    trader_type = TType.PennyJumper
     
     def __init__(self, int name, int maxq, int mpi):
         '''
@@ -273,7 +274,6 @@ cdef class PennyJumper(ZITrader):
         at the inside or not.
         '''
         super().__init__(name, maxq)
-        self.trader_type = 'PennyJumper'
         self._mpi = mpi
         self.cancel_collector = []
         self._ask_quote = None
@@ -344,10 +344,10 @@ cdef class Taker(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader)
     Public methods: process_signal 
     '''
+    trader_type = TType.Taker
 
     def __init__(self, int name, int maxq):
         super().__init__(name, maxq)
-        self.trader_type = 'Taker'
         
     cpdef process_signal(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
@@ -366,10 +366,10 @@ cdef class InformedTrader(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader)
     Public methods: process_signal
     '''
+    trader_type = TType.Informed
     
     def __init__(self, int name, int maxq):
         super().__init__(name, maxq)
-        self.trader_type = 'InformedTrader'
         self._side = random.choice([Side.BID, Side.ASK])
         self._price = 0 if self._side == Side.ASK else 2000000
         

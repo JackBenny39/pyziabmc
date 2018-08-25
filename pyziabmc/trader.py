@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 from math import ceil, floor, log
-from pyziabmc.shared import Side, OType
+from pyziabmc.shared import Side, OType, TType
 
 
 class ZITrader:
@@ -14,6 +14,7 @@ class ZITrader:
     Public attributes: quote_collector
     Public methods: none
     '''
+    trader_type = TType.ZITrader
 
     def __init__(self, name, maxq):
         '''
@@ -22,7 +23,6 @@ class ZITrader:
         quote_collector is a public container for carrying quotes to the exchange
         '''
         self.trader_id = name # trader id
-        self.trader_type = 'ZITrader'
         self.quantity = self._make_q(maxq)
         self.quote_collector = []
         self._quote_sequence = 0
@@ -54,13 +54,13 @@ class Provider(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector, local_book
     Public methods: confirm_cancel_local, confirm_trade_local, process_signal, bulk_cancel
     '''
+    trader_type = TType.Provider
         
     def __init__(self, name, maxq, delta):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         super().__init__(name, maxq)
-        self.trader_type = 'Provider'
         self._delta = delta
         self.local_book = {}
         self.cancel_collector = []
@@ -147,13 +147,13 @@ class MarketMaker(Provider):
     cash_flow_collector
     Public methods: confirm_cancel_local (from Provider), confirm_trade_local, process_signal 
     '''
+    trader_type = TType.MarketMaker
 
     def __init__(self, name, maxq, delta, num_quotes, quote_range):
         '''_num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
         super().__init__(name, maxq, delta)
-        self.trader_type = 'MarketMaker'
         self._num_quotes = num_quotes
         self._quote_range = quote_range
         self._position = 0
@@ -252,6 +252,7 @@ class PennyJumper(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader), cancel_collector
     Public methods: confirm_trade_local (from ZITrader)
     '''
+    trader_type = TType.PennyJumper
     
     def __init__(self, name, maxq, mpi):
         '''
@@ -262,7 +263,6 @@ class PennyJumper(ZITrader):
         at the inside or not.
         '''
         super().__init__(name, maxq)
-        self.trader_type = 'PennyJumper'
         self._mpi = mpi
         self.cancel_collector = []
         self._ask_quote = None
@@ -333,10 +333,10 @@ class Taker(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader)
     Public methods: process_signal 
     '''
+    trader_type = TType.Taker
 
     def __init__(self, name, maxq):
         super().__init__(name, maxq)
-        self.trader_type = 'Taker'
         
     def process_signal(self, time, q_taker):
         '''Taker buys or sells with 50% probability.'''
@@ -355,10 +355,10 @@ class InformedTrader(ZITrader):
     Public attributes: trader_type, quote_collector (from ZITrader)
     Public methods: process_signal
     '''
+    trader_type = TType.Informed
     
     def __init__(self, name, maxq):
         ZITrader.__init__(self, name, maxq)
-        self.trader_type = 'InformedTrader'
         self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
         
