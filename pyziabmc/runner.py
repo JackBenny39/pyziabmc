@@ -150,8 +150,7 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(0)
         for current_time in range(1, prime1):
             for p in self.makeProviders(current_time):
-                p.process_signal(current_time, top_of_book, self.q_provide, -lambda0)
-                self.exchange.process_order(p.quote_collector[-1])
+                self.exchange.process_order(p.process_signal(current_time, top_of_book, self.q_provide, -lambda0))
                 top_of_book = self.exchange.report_top_of_book(current_time)
                 
     def makeProviders(self, step):
@@ -196,9 +195,17 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
-                if row[0].trader_type in self.providers:
+                if row[0].trader_type == TType.Provider:
                     if row[1]:
-                        row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
+                        self.exchange.process_order(row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                    row[0].bulk_cancel(current_time)
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.MarketMaker:
+                    if row[1]:
+                        row[0].process_signal(current_time, top_of_book, self.q_provide)
                         for q in row[0].quote_collector:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -206,9 +213,13 @@ class Runner(object):
                     if row[0].cancel_collector:
                         self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.Taker:
+                    self.exchange.process_order(row[0].process_signal(current_time, self.q_take[current_time]))
+                    if self.exchange.traded:
+                        self.confirmTrades()
+                        top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
-                    row[0].process_signal(current_time, self.q_take[current_time])
-                    self.exchange.process_order(row[0].quote_collector[-1])
+                    self.exchange.process_order(row[0].process_signal(current_time))
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -220,9 +231,17 @@ class Runner(object):
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             for row in self.makeAll(current_time):
-                if row[0].trader_type in self.providers:
+                if row[0].trader_type == TType.Provider:
                     if row[1]:
-                        row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time])
+                        self.exchange.process_order(row[0].process_signal(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                    row[0].bulk_cancel(current_time)
+                    if row[0].cancel_collector:
+                        self.doCancels(row[0])
+                        top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.MarketMaker:
+                    if row[1]:
+                        row[0].process_signal(current_time, top_of_book, self.q_provide)
                         for q in row[0].quote_collector:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -230,9 +249,13 @@ class Runner(object):
                     if row[0].cancel_collector:
                         self.doCancels(row[0])
                         top_of_book = self.exchange.report_top_of_book(current_time)
+                elif row[0].trader_type == TType.Taker:
+                    self.exchange.process_order(row[0].process_signal(current_time, self.q_take[current_time]))
+                    if self.exchange.traded:
+                        self.confirmTrades()
+                        top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
-                    row[0].process_signal(current_time, self.q_take[current_time])
-                    self.exchange.process_order(row[0].quote_collector[-1])
+                    self.exchange.process_order(row[0].process_signal(current_time))
                     if self.exchange.traded:
                         self.confirmTrades()
                         top_of_book = self.exchange.report_top_of_book(current_time)
@@ -276,7 +299,7 @@ if __name__ == '__main__':
     
         start = time.time()
         
-        h5_root = 'python_enumttype_%d' % j
+        h5_root = 'python_concise_%d' % j
         h5dir = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial 901\\'
         h5_file = '%s%s.h5' % (h5dir, h5_root)
     

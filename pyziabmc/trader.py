@@ -103,7 +103,7 @@ class Provider(ZITrader):
             price = self._choose_price_from_exp(side, qsignal['best_bid'], lambda_t)
         q = self._make_add_quote(time, side, price)
         self.local_book[q['order_id']] = q
-        self.quote_collector.append(q)            
+        return q            
       
     def _choose_price_from_exp(self, side, inside_price, lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -186,7 +186,7 @@ class MarketMaker(Provider):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
             
-    def process_signal(self, time, qsignal, q_provider, *args):
+    def process_signal(self, time, qsignal, q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -342,9 +342,9 @@ class Taker(ZITrader):
         '''Taker buys or sells with 50% probability.'''
         self.quote_collector.clear()
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
-            self.quote_collector.append(self._make_add_quote(time, Side.BID, 2000000))
+            return self._make_add_quote(time, Side.BID, 2000000)
         else:
-            self.quote_collector.append(self._make_add_quote(time, Side.ASK, 0))
+            return self._make_add_quote(time, Side.ASK, 0)
         
         
 class InformedTrader(ZITrader):
@@ -362,7 +362,7 @@ class InformedTrader(ZITrader):
         self._side = random.choice(['buy', 'sell'])
         self._price = 0 if self._side == 'sell' else 2000000
         
-    def process_signal(self, time, *args):
+    def process_signal(self, time):
         '''InformedTrader buys or sells pre-specified attribute.'''
         self.quote_collector.clear()
-        self.quote_collector.append(self._make_add_quote(time, self._side, self._price))
+        return self._make_add_quote(time, self._side, self._price)
