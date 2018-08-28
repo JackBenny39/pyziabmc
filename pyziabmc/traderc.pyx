@@ -100,7 +100,6 @@ cdef class Provider(ZITrader):
         cdef int price
         cdef Side side
         cdef dict q
-        self.quote_collector.clear()
         if random.random() < q_provider:
             side = Side.BID
             price = self._choose_price_from_exp(side, qsignal['best_ask'], lambda_t)  
@@ -351,7 +350,6 @@ cdef class Taker(ZITrader):
         
     cpdef dict process_signalt(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
-        self.quote_collector.clear()
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
             return self._make_add_quote(time, Side.BID, 2000000)
         else:
@@ -375,5 +373,4 @@ cdef class InformedTrader(ZITrader):
         
     cpdef dict process_signali(self, int time):
         '''InformedTrader buys or sells pre-specified attribute.'''
-        self.quote_collector.clear()
         return self._make_add_quote(time, self._side, self._price)
