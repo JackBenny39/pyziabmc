@@ -16,10 +16,12 @@ cdef class ZITrader:
     
 cdef class Provider(ZITrader):
 
+    cdef public int delta_t
     cdef double _delta
     cdef public list cancel_collector
     cdef public dict local_book
     
+    cdef int _make_delta(self, double pAlpha)
     cdef dict _make_cancel_quote(self, dict q, int time)
     cpdef confirm_trade_local(self, dict confirm)
     cpdef bulk_cancel(self, int time)
@@ -61,7 +63,10 @@ cdef class PennyJumper(ZITrader):
     
     
 cdef class Taker(ZITrader):
+
+    cdef public int delta_t
     
+    cdef int _make_delta(self, double tMu)
     cpdef dict process_signalt(self, int time, double q_taker)
     
     
@@ -69,6 +74,8 @@ cdef class InformedTrader(ZITrader):
     
     cdef Side _side
     cdef int _price
+    cdef public set delta_t
     
+    cdef set _make_delta(self, int informedTrades, int informedRunLength, int start, int stop)
     cpdef dict process_signali(self, int time)
     
