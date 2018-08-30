@@ -110,7 +110,7 @@ cdef class Orderbook:
         else: 
             return BookTop(deref(self._asks.begin()).first, deref(self._asks.begin()).second.qty)
             
-    cpdef process_order(self, dict order):
+    cdef void process_order(self, dict order):
         self.traded = False
         self.add_order_to_history(order)
         
