@@ -1,5 +1,12 @@
-cimport numpy as np
-from pyziabmc.sharedc cimport Side, TType
+from libcpp.pair cimport pair
+from libcpp.unordered_map cimport unordered_map
+from libcpp.vector cimport vector
+
+from pyziabmc.sharedc cimport Side, TType, Order, Quote
+
+ctypedef unordered_map[int, Order] LocalBook
+ctypedef pair[int, Order] OneOrder
+ctypedef vector[Order*] OrderV
 
 cdef TType trader_type
 
@@ -8,24 +15,24 @@ cdef class ZITrader:
 
     cdef public int trader_id, quantity
     cdef int _quote_sequence
-    cdef public list quote_collector
+    cdef public OrderV quote_collector
     
     cdef int _make_q(self, int maxq)
-    cdef dict _make_add_quote(self, int time, Side side, int price)
+    cdef Order _make_add_quote(self, int time, Side side, int price)
  
     
 cdef class Provider(ZITrader):
 
     cdef public int delta_t
     cdef double _delta
-    cdef public list cancel_collector
-    cdef public dict local_book
+    cdef public OrderV cancel_collector
+    cdef public LocalBook local_book
     
     cdef int _make_delta(self, double pAlpha)
-    cdef dict _make_cancel_quote(self, dict q, int time)
-    cpdef confirm_trade_local(self, dict confirm)
+    cdef Order _make_cancel_quote(self, Order &q, int time)
+    cpdef confirm_trade_local(self, Quote &confirm)
     cpdef bulk_cancel(self, int time)
-    cpdef dict process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t)
+    cpdef Order process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t)
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t)
     
     
@@ -39,7 +46,7 @@ cdef class MarketMaker(Provider):
     cdef int _num_quotes, _quote_range, _position, _cash_flow
     cdef public list cash_flow_collector
     
-    cpdef confirm_trade_local(self, dict confirm)
+    cpdef confirm_trade_local(self, Quote &confirm)
     cdef void _cumulate_cashflow(self, int timestamp)
     cpdef process_signalm(self, int time, dict qsignal, double q_provider)
     
@@ -54,11 +61,11 @@ cdef class MarketMaker5(MarketMaker):
 cdef class PennyJumper(ZITrader):
     
     cdef int _mpi
-    cdef public list cancel_collector
-    cdef dict _ask_quote, _bid_quote
+    cdef public OrderV cancel_collector
+    cdef Order _ask_quote, _bid_quote
     
-    cdef dict _make_cancel_quote(self, dict q, int time)
-    cpdef confirm_trade_local(self, dict confirm)
+    cdef dict _make_cancel_quote(self, Order &q, int time)
+    cpdef confirm_trade_local(self, Quote &confirm)
     cpdef process_signalj(self, int time, dict qsignal, double q_taker)
     
     
@@ -67,7 +74,7 @@ cdef class Taker(ZITrader):
     cdef public int delta_t
     
     cdef int _make_delta(self, double tMu)
-    cpdef dict process_signalt(self, int time, double q_taker)
+    cpdef Order process_signalt(self, int time, double q_taker)
     
     
 cdef class InformedTrader(ZITrader):
@@ -77,5 +84,5 @@ cdef class InformedTrader(ZITrader):
     cdef public set delta_t
     
     cdef set _make_delta(self, int informedTrades, int informedRunLength, int start, int stop)
-    cpdef dict process_signali(self, int time)
+    cpdef Order process_signali(self, int time)
     

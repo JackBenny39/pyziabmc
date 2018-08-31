@@ -2,15 +2,7 @@ from libcpp.list cimport list as clist
 from libcpp.map cimport map
 from libcpp.pair cimport pair
 
-from pyziabmc.sharedc cimport OType, Side
-
-ctypedef struct Quote:
-    int trader_id
-    int order_id
-    int timestamp
-    int qty
-    Side side
-    int price
+from pyziabmc.sharedc cimport OType, Side, Quote
     
 ctypedef clist[Quote] Quotes
     

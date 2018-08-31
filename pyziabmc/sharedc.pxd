@@ -16,3 +16,22 @@ cdef enum TType:
     PennyJumper = 3
     Taker = 4
     Informed = 5
+    
+
+ctypedef struct Quote:
+    int trader_id
+    int order_id
+    int timestamp
+    int qty
+    Side side
+    int price
+    
+    
+ctypedef struct Order:
+    int trader_id
+    int order_id
+    int timestamp
+    OType type
+    int quantity
+    Side side
+    int price

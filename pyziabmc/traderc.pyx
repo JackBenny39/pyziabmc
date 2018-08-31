@@ -6,7 +6,7 @@ import numpy as np
 cimport numpy as np
 
 from libc.math cimport ceil, floor, log
-from pyziabmc.sharedc cimport Side, OType, TType
+from pyziabmc.sharedc cimport Side, OType, TType, Quote, Order
 
 
 cdef class ZITrader:
@@ -27,7 +27,7 @@ cdef class ZITrader:
         '''
         self.trader_id = name # trader id
         self.quantity = self._make_q(maxq)
-        self.quote_collector = []
+        self.quote_collector = OrderV()
         self._quote_sequence = 0
         
     def __repr__(self):
@@ -42,11 +42,10 @@ cdef class ZITrader:
         cdef np.ndarray default_arr = np.array([1, 5, 10, 25, 50], dtype=np.int)
         return random.choice(default_arr[default_arr<=maxq])
     
-    cdef dict _make_add_quote(self, int time, Side side, int price):
+    cdef Order _make_add_quote(self, int time, Side side, int price):
         '''Make one add quote (dict)'''
         self._quote_sequence += 1
-        return {'order_id': self._quote_sequence, 'trader_id': self.trader_id, 'timestamp': time, 
-                'type': OType.ADD, 'quantity': self.quantity, 'side': side, 'price': price}
+        return Order(self.trader_id, self._quote_sequence, time, OType.ADD, self.quantity, side, price)
         
         
 cdef class Provider(ZITrader):
@@ -66,8 +65,8 @@ cdef class Provider(ZITrader):
         super().__init__(name, maxq)
         self._delta = delta
         self.delta_t = self._make_delta(pAlpha)
-        self.local_book = {}
-        self.cancel_collector = []
+        self.local_book = LocalBook()
+        self.cancel_collector = OrderV()
                 
     def __repr__(self):
         class_name = type(self).__name__
@@ -79,31 +78,31 @@ cdef class Provider(ZITrader):
     cdef int _make_delta(self, double pAlpha):
         return int(floor(random.expovariate(pAlpha)+1)*self.quantity)
     
-    cdef dict _make_cancel_quote(self, dict q, int time):
-        return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
-                'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
+    cdef Order _make_cancel_quote(self, Order &q, int time):
+        return Order(q.trader_id, q.order_id, time, OType.CANCEL, q.quantity, q.side, q.price)
 
-    cpdef confirm_trade_local(self, dict confirm):
-        to_modify = self.local_book[confirm['order_id']]
-        if confirm['quantity'] == to_modify['quantity']:
-            del self.local_book[to_modify['order_id']]
+    cpdef confirm_trade_local(self, Quote &confirm):
+        cdef Order *to_modify = &self.local_book[confirm.order_id]
+        if confirm.qty == to_modify.quantity:
+            self.local_book.erase(confirm.order_id)
         else:
-            self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
+            to_modify.quantity = to_modify.quantity - confirm.qty
             
     cpdef bulk_cancel(self, int time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
+        cdef OneOrder x
+        cdef Order c
         self.cancel_collector.clear()
-        for x in self.local_book.keys():
+        for x in self.local_book:
             if random.random() < self._delta:
-                self.cancel_collector.append(self._make_cancel_quote(self.local_book[x], time))
+                self.cancel_collector.push_back(self._make_cancel_quote(x.second, time))
         for c in self.cancel_collector:        
-            del self.local_book[c['order_id']]
+            self.local_book.erase(c.order_id)
 
-    cpdef dict process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t):
+    cpdef Order process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t):
         '''Provider buys or sells with probability related to q_provide'''
         cdef int price
         cdef Side side
-        cdef dict q
         if random.random() < q_provider:
             side = Side.BID
             price = self._choose_price_from_exp(side, qsignal['best_ask'], lambda_t)  
@@ -111,7 +110,7 @@ cdef class Provider(ZITrader):
             side = Side.ASK
             price = self._choose_price_from_exp(side, qsignal['best_bid'], lambda_t)
         q = self._make_add_quote(time, side, price)
-        self.local_book[q['order_id']] = q
+        self.local_book.insert(OneOrder(q.order_id, q))
         return q
         
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t):
@@ -174,20 +173,20 @@ cdef class MarketMaker(Provider):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range]))
             
-    cpdef confirm_trade_local(self, dict confirm):
+    cpdef confirm_trade_local(self, Quote &confirm):
         '''Modify _cash_flow and _position; update the local_book'''
-        if confirm['side'] == Side.BID:
-            self._cash_flow -= confirm['price']*confirm['quantity']
-            self._position += confirm['quantity']
+        cdef Order *to_modify = &self.local_book[confirm.order_id]
+        if confirm.side == Side.BID:
+            self._cash_flow = self._cash_flow - confirm.price*confirm.qty
+            self._position = self._position + confirm.qty
         else:
-            self._cash_flow += confirm['price']*confirm['quantity']
-            self._position -= confirm['quantity']
-        to_modify = self.local_book[confirm['order_id']]
-        if confirm['quantity'] == to_modify['quantity']:
-            del self.local_book[to_modify['order_id']]
+            self._cash_flow = self._cash_flow + confirm.price*confirm.qty
+            self._position = self._position - confirm.qty
+        if confirm.qty == to_modify.quantity:
+            self.local_book.erase(confirm.order_id)
         else:
-            self.local_book[confirm['order_id']]['quantity'] -= confirm['quantity']
-        self._cumulate_cashflow(confirm['timestamp'])
+            to_modify.quantity = to_modify.quantity - confirm.qty
+        self._cumulate_cashflow(confirm.timestamp)
          
     cdef void _cumulate_cashflow(self, int timestamp):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
@@ -201,7 +200,6 @@ cdef class MarketMaker(Provider):
         cdef int max_bid_price, min_ask_price, price
         cdef np.ndarray prices
         cdef Side side
-        cdef dict q
         self.quote_collector.clear()
         if random.random() < q_provider:
             max_bid_price = qsignal['best_bid'] if qsignal['bid_size'] > 1 else qsignal['best_bid'] - 1
@@ -213,8 +211,8 @@ cdef class MarketMaker(Provider):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            self.local_book[q['order_id']] = q
-            self.quote_collector.append(q)
+            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second
+            self.quote_collector.push_back(qptr)
             
             
 cdef class MarketMaker5(MarketMaker):
@@ -254,8 +252,8 @@ cdef class MarketMaker5(MarketMaker):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            self.local_book[q['order_id']] = q
-            self.quote_collector.append(q)
+            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second
+            self.quote_collector.push_back(qptr)
             
 
 cdef class PennyJumper(ZITrader):
@@ -278,7 +276,7 @@ cdef class PennyJumper(ZITrader):
         '''
         super().__init__(name, maxq)
         self._mpi = mpi
-        self.cancel_collector = []
+        self.cancel_collector = OrderV()
         self._ask_quote = None
         self._bid_quote = None
     
@@ -289,13 +287,12 @@ cdef class PennyJumper(ZITrader):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._mpi]))
     
-    cdef dict _make_cancel_quote(self, dict q, int time):
-        return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
-                'quantity': q['quantity'], 'side': q['side'], 'price': q['price']}
+    cdef Order _make_cancel_quote(self, Order &q, int time):
+        return Order(q.trader_id, q.order_id, time, OType.CANCEL, q.quantity, q.side, q.price)
 
-    cpdef confirm_trade_local(self, dict confirm):
+    cpdef confirm_trade_local(self, Quote &confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
-        if confirm['side'] == Side.BID:
+        if confirm.side == Side.BID:
             self._bid_quote = None
         else:
             self._ask_quote = None
@@ -352,7 +349,7 @@ cdef class Taker(ZITrader):
     cdef int _make_delta(self, double tMu):
         return int(floor(random.expovariate(tMu)+1)*self.quantity)
         
-    cpdef dict process_signalt(self, int time, double q_taker):
+    cpdef Order process_signalt(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
         if random.random() < q_taker: # q_taker > 0.5 implies greater probability of a buy order
             return self._make_add_quote(time, Side.BID, 2000000)
@@ -393,6 +390,6 @@ cdef class InformedTrader(ZITrader):
                 runL += 1
         return delta_t
         
-    cpdef dict process_signali(self, int time):
+    cpdef Order process_signali(self, int time):
         '''InformedTrader buys or sells pre-specified attribute.'''
         return self._make_add_quote(time, self._side, self._price)
