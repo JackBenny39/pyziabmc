@@ -180,7 +180,7 @@ cdef class Runner:
                         self.exchange.process_order(t.process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
-                    if t.cancel_collector:
+                    if not t.cancel_collector.empty():
                         self.doCancels(t)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.MarketMaker:
@@ -190,7 +190,7 @@ cdef class Runner:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
-                    if t.cancel_collector:
+                    if not t.cancel_collector.empty():
                         self.doCancels(t)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.Taker:
@@ -222,7 +222,7 @@ cdef class Runner:
                         self.exchange.process_order(t.process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
-                    if t.cancel_collector:
+                    if not t.cancel_collector.empty():
                         self.doCancels(t)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.MarketMaker:
@@ -232,7 +232,7 @@ cdef class Runner:
                             self.exchange.process_order(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
-                    if t.cancel_collector:
+                    if not t.cancel_collector.empty():
                         self.doCancels(t)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.Taker:
@@ -249,10 +249,10 @@ cdef class Runner:
                             top_of_book = self.exchange.report_top_of_book(current_time)
                 if random.random() < self.alpha_pj:
                     self.pennyjumper.process_signalj(current_time, top_of_book, self.q_take[current_time])
-                    if self.pennyjumper.cancel_collector:
+                    if not self.pennyjumper.cancel_collector.empty():
                         for c in self.pennyjumper.cancel_collector:
                             self.exchange.process_order(c)
-                    if self.pennyjumper.quote_collector:
+                    if not self.pennyjumper.quote_collector.empty():
                         for q in self.pennyjumper.quote_collector:
                             self.exchange.process_order(q)
                     top_of_book = self.exchange.report_top_of_book(current_time)

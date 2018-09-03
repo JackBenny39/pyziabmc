@@ -62,6 +62,7 @@ cdef class PennyJumper(ZITrader):
     
     cdef int _mpi
     cdef public OrderV cancel_collector
+    cdef bint _has_ask, _has_bid
     cdef Order _ask_quote, _bid_quote
     
     cdef dict _make_cancel_quote(self, Order &q, int time)

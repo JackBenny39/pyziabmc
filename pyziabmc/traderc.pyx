@@ -90,8 +90,8 @@ cdef class Provider(ZITrader):
             
     cpdef bulk_cancel(self, int time):
         '''bulk_cancel cancels _delta percent of outstanding orders'''
-        cdef OneOrder x
-        cdef Order c
+        cdef OneOrder x # not necessary
+        cdef Order c # not necessary
         self.cancel_collector.clear()
         for x in self.local_book:
             if random.random() < self._delta:
@@ -128,12 +128,6 @@ cdef class Provider5(Provider):
     
     Subclass of Provider
     '''
-
-    def __init__(self, int name, int maxq, double delta, double pAlpha):
-        '''Provider has own delta; a local_book to track outstanding orders and a 
-        cancel_collector to convey cancel messages to the exchange.
-        '''
-        super().__init__(name, maxq, delta, pAlpha)
 
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -211,7 +205,7 @@ cdef class MarketMaker(Provider):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second
+            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second # deref here?
             self.quote_collector.push_back(qptr)
             
             
@@ -252,7 +246,7 @@ cdef class MarketMaker5(MarketMaker):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second
+            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second # deref here?
             self.quote_collector.push_back(qptr)
             
 
@@ -277,8 +271,10 @@ cdef class PennyJumper(ZITrader):
         super().__init__(name, maxq)
         self._mpi = mpi
         self.cancel_collector = OrderV()
-        self._ask_quote = None
-        self._bid_quote = None
+        self._has_ask = False
+        self._has_bid = False
+        self._ask_quote = Order(self.trader_id, 0, 0, OType.ADD, 0, Side.ASK, 0)
+        self._bid_quote = Order(self.trader_id, 0, 0, OType.ADD, 0, Side.BID, 0)
     
     def __repr__(self):
         class_name = type(self).__name__
@@ -293,9 +289,9 @@ cdef class PennyJumper(ZITrader):
     cpdef confirm_trade_local(self, Quote &confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
         if confirm.side == Side.BID:
-            self._bid_quote = None
+            self._has_bid = False
         else:
-            self._ask_quote = None
+            self._has_ask = False
             
     cpdef process_signalj(self, int time, dict qsignal, double q_taker):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
@@ -306,30 +302,34 @@ cdef class PennyJumper(ZITrader):
         if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
             # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
             if random.random() < q_taker:
-                if self._bid_quote: # check if not alone at the bid
-                    if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
+                if self._has_bid: # check if not alone at the bid
+                    if self._bid_quote.price < qsignal['best_bid'] or self._bid_quote.quantity < qsignal['bid_size']:
                         self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
-                        self._bid_quote = None
-                if not self._bid_quote:
+                        self._has_bid = False
+                if not self._has_bid:
                     self._bid_quote = self._make_add_quote(time, Side.BID, qsignal['best_bid'] + self._mpi)
-                    self.quote_collector.append(self._bid_quote)
+                    cdef Order *qb_ptr = &self._bid_quote
+                    self.quote_collector.append(qb_ptr)
+                    self._has_bid = True
             else:
-                if self._ask_quote: # check if not alone at the ask
-                    if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
+                if self._has_ask: # check if not alone at the ask
+                    if self._ask_quote.price > qsignal['best_ask'] or self._ask_quote.quantity < qsignal['ask_size']:
                         self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
-                        self._ask_quote = None
-                if not self._ask_quote:
+                        self._has_ask = False
+                if not self._has_ask:
                     self._ask_quote = self._make_add_quote(time, Side.ASK, qsignal['best_ask'] - self._mpi)
-                    self.quote_collector.append(self._ask_quote)
+                    cdef Order *qa_ptr = &self._ask_quote
+                    self.quote_collector.append(qa_ptr)
+                    self._has_ask = True
         else: # spread = mpi
-            if self._bid_quote: # check if not alone at the bid
-                if self._bid_quote['price'] < qsignal['best_bid'] or self._bid_quote['quantity'] < qsignal['bid_size']:
+            if self._has_bid: # check if not alone at the bid
+                if self._bid_quote.price < qsignal['best_bid'] or self._bid_quote.quantity < qsignal['bid_size']:
                     self.cancel_collector.append(self._make_cancel_quote(self._bid_quote, time))
-                    self._bid_quote = None
-            if self._ask_quote: # check if not alone at the ask
-                if self._ask_quote['price'] > qsignal['best_ask'] or self._ask_quote['quantity'] < qsignal['ask_size']:
+                    self._has_bid = False
+            if self._has_ask: # check if not alone at the ask
+                if self._ask_quote.price > qsignal['best_ask'] or self._ask_quote.quantity < qsignal['ask_size']:
                     self.cancel_collector.append(self._make_cancel_quote(self._ask_quote, time))
-                    self._ask_quote = None
+                    self._has_ask = False
                               
 
 cdef class Taker(ZITrader):

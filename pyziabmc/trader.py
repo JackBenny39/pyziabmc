@@ -125,12 +125,6 @@ class Provider5(Provider):
     Subclass of Provider
     '''
 
-    def __init__(self, name, maxq, delta, pAlpha):
-        '''Provider has own delta; a local_book to track outstanding orders and a 
-        cancel_collector to convey cancel messages to the exchange.
-        '''
-        super().__init__(name, maxq, delta, pAlpha)
-
     def _choose_price_from_exp(self, side, inside_price, lambda_t):
         '''Prices chosen from an exponential distribution'''
         plug = int(lambda_t*log(random.random()))
@@ -222,11 +216,11 @@ class MarketMaker5(MarketMaker):
         _num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
-        MarketMaker.__init__(self, name, maxq, pAlpha, delta, num_quotes, quote_range)
+        super().__init__(name, maxq, pAlpha, delta, num_quotes, quote_range)
         self._p5ask = [1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30]
         self._p5bid = [1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20]
                
-    def process_signal(self, time, qsignal, q_provider, *args):
+    def process_signal(self, time, qsignal, q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
