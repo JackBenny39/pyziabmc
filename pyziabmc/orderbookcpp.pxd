@@ -34,7 +34,7 @@ cdef class Orderbook:
     cdef int _order_index, _ex_index
     cdef public bint traded
     
-    cpdef add_order_to_history(self, dict order)
+    cdef void add_order_to_history(self, Order &order)
     cpdef add_order_to_book(self, int trader_id, int order_id, int timestamp, int quantity, Side side, int price)
     cdef void _remove_order(self, int trader_id, int order_id, int quantity)
     cdef void _modify_order(self, int trader_id, int order_id, int quantity)
@@ -45,6 +45,7 @@ cdef class Orderbook:
                              int order_price, int trader_id)
     cdef BookTop get_ask(self)
     cdef BookTop get_bid(self)
-    cdef void process_order(self, dict order)
+    cdef void process_orderp(self, Order *optr)
+    cdef void process_orderr(self, Order &order)
     cdef void _match_trade(self, int trader_id, int order_id, int timestamp, int quantity, Side side, int price)
     cpdef dict report_top_of_book(self, int now_time)

@@ -104,10 +104,10 @@ cdef class Provider(ZITrader):
         cdef int price
         cdef Side side
         if random.random() < q_provider:
-            side = Side.BID
+            side = Side.BID # pass into next?
             price = self._choose_price_from_exp(side, qsignal['best_ask'], lambda_t)  
         else:
-            side = Side.ASK
+            side = Side.ASK # pass into next?
             price = self._choose_price_from_exp(side, qsignal['best_bid'], lambda_t)
         q = self._make_add_quote(time, side, price)
         self.local_book.insert(OneOrder(q.order_id, q))
@@ -297,6 +297,8 @@ cdef class PennyJumper(ZITrader):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
         point inside the current quotes.
         '''
+        cdef Order *qb_ptr
+        cdef Order *qa_ptr
         self.quote_collector.clear()
         self.cancel_collector.clear()
         if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
@@ -308,7 +310,7 @@ cdef class PennyJumper(ZITrader):
                         self._has_bid = False
                 if not self._has_bid:
                     self._bid_quote = self._make_add_quote(time, Side.BID, qsignal['best_bid'] + self._mpi)
-                    cdef Order *qb_ptr = &self._bid_quote
+                    qb_ptr = &self._bid_quote
                     self.quote_collector.append(qb_ptr)
                     self._has_bid = True
             else:
@@ -318,7 +320,7 @@ cdef class PennyJumper(ZITrader):
                         self._has_ask = False
                 if not self._has_ask:
                     self._ask_quote = self._make_add_quote(time, Side.ASK, qsignal['best_ask'] - self._mpi)
-                    cdef Order *qa_ptr = &self._ask_quote
+                    qa_ptr = &self._ask_quote
                     self.quote_collector.append(qa_ptr)
                     self._has_ask = True
         else: # spread = mpi

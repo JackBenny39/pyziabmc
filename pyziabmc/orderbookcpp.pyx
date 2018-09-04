@@ -48,11 +48,11 @@ cdef class Orderbook:
         self._lookup = LookUp()
         self.traded = False
        
-    cpdef add_order_to_history(self, dict order):
+    cdef void add_order_to_history(self, Order &order):
         self._order_index += 1
-        self.order_history.append({'exid': self._order_index, 'order_id': order['order_id'], 'trader_id': order['trader_id'], 
-                                   'timestamp': order['timestamp'], 'type': order['type'], 'quantity': order['quantity'], 
-                                   'side': order['side'], 'price': order['price']})
+        self.order_history.append({'exid': self._order_index, 'order_id': order.order_id, 'trader_id': order.trader_id, 
+                                   'timestamp': order.timestamp, 'type': order.type, 'quantity': order.quantity, 
+                                   'side': order.side, 'price': order.price})
     
     cpdef add_order_to_book(self, int trader_id, int order_id, int timestamp, int quantity, Side side, int price):
         cdef BookSide *b = &self._bids if side == Side.BID else &self._asks
@@ -110,30 +110,55 @@ cdef class Orderbook:
         else: 
             return BookTop(deref(self._asks.begin()).first, deref(self._asks.begin()).second.qty)
             
-    cdef void process_order(self, dict order):
+    cdef void process_orderp(self, Order *optr):
+        self.traded = False
+        self.add_order_to_history(deref(optr))
+        
+        if deref(optr).type == OType.ADD:
+            if deref(optr).side == Side.BID:
+                if deref(optr).price >= self.get_ask().first:
+                    self._match_trade(deref(optr).trader_id, deref(optr).order_id, deref(optr).timestamp,  
+                                      deref(optr).quantity, deref(optr).side, deref(optr).price)
+                else:
+                    self.add_order_to_book(deref(optr).trader_id, deref(optr).order_id, deref(optr).timestamp,  
+                                           deref(optr).quantity, deref(optr).side, deref(optr).price)
+            else:
+                if deref(optr).price <= self.get_bid().first:
+                    self._match_trade(deref(optr).trader_id, deref(optr).order_id, deref(optr).timestamp,  
+                                      deref(optr).quantity, deref(optr).side, deref(optr).price)
+                else:
+                    self.add_order_to_book(deref(optr).trader_id, deref(optr).order_id, deref(optr).timestamp,  
+                                           deref(optr).quantity, deref(optr).side, deref(optr).price)
+        else:
+            if deref(optr).type == OType.CANCEL:
+                self._remove_order(deref(optr).trader_id, deref(optr).order_id, deref(optr).quantity)
+            else:
+                self._modify_order(deref(optr).trader_id, deref(optr).order_id, deref(optr).quantity)
+                
+    cdef void process_orderr(self, Order &order):
         self.traded = False
         self.add_order_to_history(order)
         
-        if order['type'] == OType.ADD:
-            if order['side'] == Side.BID:
-                if order['price'] >= self.get_ask().first:
-                    self._match_trade(order['trader_id'], order['order_id'], order['timestamp'],  
-                                      order['quantity'], order['side'], order['price'])
+        if order.type == OType.ADD:
+            if order.side == Side.BID:
+                if order.price >= self.get_ask().first:
+                    self._match_trade(order.trader_id, order.order_id, order.timestamp,  
+                                      order.quantity, order.side, order.price)
                 else:
-                    self.add_order_to_book(order['trader_id'], order['order_id'], order['timestamp'],  
-                                           order['quantity'], order['side'], order['price'])
+                    self.add_order_to_book(order.trader_id, order.order_id, order.timestamp,  
+                                           order.quantity, order.side, order.price)
             else:
-                if order['price'] <= self.get_bid().first:
-                    self._match_trade(order['trader_id'], order['order_id'], order['timestamp'],  
-                                      order['quantity'], order['side'], order['price'])
+                if order.price <= self.get_bid().first:
+                    self._match_trade(order.trader_id, order.order_id, order.timestamp,  
+                                      order.quantity, order.side, order.price)
                 else:
-                    self.add_order_to_book(order['trader_id'], order['order_id'], order['timestamp'],  
-                                           order['quantity'], order['side'], order['price'])
+                    self.add_order_to_book(order.trader_id, order.order_id, order.timestamp,  
+                                           order.quantity, order.side, order.price)
         else:
-            if order['type'] == OType.CANCEL:
-                self._remove_order(order['trader_id'], order['order_id'], order['quantity'])
+            if order.type == OType.CANCEL:
+                self._remove_order(order.trader_id, order.order_id, order.quantity)
             else:
-                self._modify_order(order['trader_id'], order['order_id'], order['quantity'])
+                self._modify_order(order.trader_id, order.order_id, order.quantity)
                         
     cdef void _match_trade(self, int trader_id, int order_id, int timestamp, int quantity, Side side, int price):
         self.traded = True
