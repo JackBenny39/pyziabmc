@@ -1,10 +1,12 @@
 from libcpp.list cimport list as clist
 from libcpp.map cimport map
 from libcpp.pair cimport pair
+from libcpp.vector import vector
 
 from pyziabmc.sharedc cimport OType, Side, Quote
     
 ctypedef clist[Quote] Quotes
+ctypedef vector[Quote] Confirms
     
 ctypedef struct Level:
     int cnt
@@ -29,7 +31,8 @@ ctypedef pair[int, int] BookTop
 cdef class Orderbook:
     cdef list _sip_collector
     cdef BookSide _bids, _asks
-    cdef public list order_history, confirm_trade_collector, trade_book
+    cdef public Confirms confirm_trade_collector
+    cdef public list order_history, trade_book
     cdef LookUp _lookup
     cdef int _order_index, _ex_index
     cdef public bint traded
@@ -41,8 +44,7 @@ cdef class Orderbook:
     cdef void _add_trade_to_book(self, int resting_trader_id, int resting_order_id, int resting_timestamp,
                                  int incoming_trader_id, int incoming_order_id,
                                  int timestamp, int price, int quantity, Side side)
-    cdef void _confirm_trade(self, int timestamp, Side order_side, int order_quantity, int order_id,
-                             int order_price, int trader_id)
+    cdef void _confirm_trade(self, int trader_id, int order_id, int timestamp, int quantity, Side side, int price)
     cdef BookTop get_ask(self)
     cdef BookTop get_bid(self)
     cdef void process_orderp(self, Order *optr)

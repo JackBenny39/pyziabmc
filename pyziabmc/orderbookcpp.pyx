@@ -40,7 +40,7 @@ cdef class Orderbook:
         self.order_history = []
         self._bids = BookSide()
         self._asks = BookSide()
-        self.confirm_trade_collector = []
+        self.confirm_trade_collector = Confirms()
         self._sip_collector = []
         self.trade_book = []
         self._order_index = 0
@@ -93,10 +93,8 @@ cdef class Orderbook:
                                 'incoming_trader_id': incoming_trader_id, 'incoming_order_id': incoming_order_id, 'timestamp': timestamp, 'price': price,
                                 'quantity': quantity, 'side': side})
 
-    cdef void _confirm_trade(self, int timestamp, Side order_side, int order_quantity, int order_id,
-                             int order_price, int trader_id):
-        self.confirm_trade_collector.append({'timestamp': timestamp, 'trader': trader_id, 'order_id': order_id, 
-                                             'quantity': order_quantity, 'side': order_side, 'price': order_price})
+    cdef void _confirm_trade(self, int trader_id, int order_id, int timestamp, int quantity, Side side, int price):
+        self.confirm_trade_collector.push_back(Quote(trader_id, order_id, timestamp, quantity, side, price))
         
     cdef BookTop get_bid(self):
         if self._bids.empty():

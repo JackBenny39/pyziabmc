@@ -12,7 +12,7 @@ import pandas as pd
 cimport pyziabmc.orderbookcpp as orderbook
 cimport pyziabmc.traderc as trader
 
-from pyziabmc.sharedc cimport Side, OType, TType
+from pyziabmc.sharedc cimport Side, OType, TType, Order
 
 
 cdef class Runner:
@@ -131,16 +131,14 @@ cdef class Runner:
     def seedOrderbook(self, pAlpha):
         seed_provider = trader.Provider(9999, 1, 0.05, pAlpha)
         self.liquidity_providers.update({9999: seed_provider})
-        ba = random.choice(range(1000005, 1002001, 5))
-        bb = random.choice(range(997995, 999996, 5))
-        qask = {'order_id': 1, 'trader_id': 9999, 'timestamp': 0, 'type': OType.ADD, 
-                'quantity': 1, 'side': Side.ASK, 'price': ba}
-        qbid = {'order_id': 2, 'trader_id': 9999, 'timestamp': 0, 'type': OType.ADD,
-                'quantity': 1, 'side': Side.BID, 'price': bb}
-        seed_provider.local_book[1] = qask
+        cdef int ba = random.choice(range(1000005, 1002001, 5))
+        cdef int bb = random.choice(range(997995, 999996, 5))
+        qask = Order(9999, 1, 0, OType.ADD, 1, Side.ASK, ba)
+        qbid = Order(9999, 2, 0, OType.ADD, 1, Side.BID, bb)
+        seed_provider.local_book.insert(OneOrder(qask.order_id, qask)) # Need to declare OneOrder?
         self.exchange.add_order_to_book(9999, 1, 0, 1, Side.ASK, ba)
         self.exchange.add_order_to_history(qask)
-        seed_provider.local_book[2] = qbid
+        seed_provider.local_book.insert(OneOrder(qbid.order_id, qbid)) # Need to declare OneOrder?
         self.exchange.add_order_to_book(9999, 2, 0, 1, Side.BID, bb)
         self.exchange.add_order_to_history(qbid)
     
@@ -153,18 +151,12 @@ cdef class Runner:
             ps = random.sample(self.providers, self.num_providers)
             for p in ps:
                 if not current_time % p.delta_t:
-                    self.exchange.process_order(p.process_signalp(current_time, top_of_book, self.q_provide, -lambda0))
+                    self.exchange.process_orderr(p.process_signalp(current_time, top_of_book, self.q_provide, -lambda0))
                     top_of_book = self.exchange.report_top_of_book(current_time)
-    
-    cdef void doCancels(self, trader):
-        cdef dict c
-        for c in trader.cancel_collector:
-            self.exchange.process_order(c)
                     
     cdef void confirmTrades(self):
-        cdef dict c
         for c in self.exchange.confirm_trade_collector:
-            contra_side = self.liquidity_providers[c['trader']]
+            contra_side = self.liquidity_providers[c.trader_id]
             contra_side.confirm_trade_local(c)
             
     @cython.boundscheck(False)
@@ -181,7 +173,8 @@ cdef class Runner:
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
-                        self.doCancels(t)
+                        for c in t.cancel_collector:
+                            self.exchange.process_orderr(c)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.MarketMaker:
                     if not current_time % t.quantity:
@@ -191,7 +184,8 @@ cdef class Runner:
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
-                        self.doCancels(t)
+                        for c in t.cancel_collector:
+                            self.exchange.process_orderr(c)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.Taker:
                     if not current_time % t.delta_t:
@@ -223,7 +217,8 @@ cdef class Runner:
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
-                        self.doCancels(t)
+                        for c in t.cancel_collector:
+                            self.exchange.process_orderr(c)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.MarketMaker:
                     if not current_time % t.quantity:
@@ -233,7 +228,8 @@ cdef class Runner:
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
-                        self.doCancels(t)
+                        for c in t.cancel_collector:
+                            self.exchange.process_orderr(c)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.Taker:
                     if not current_time % t.delta_t:
