@@ -2,6 +2,8 @@
 
 import random
 
+from cython.operator cimport dereference as deref
+
 import numpy as np
 cimport numpy as np
 
@@ -186,7 +188,7 @@ cdef class MarketMaker(Provider):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
             
-    cpdef process_signalm(self, int time, dict qsignal, double q_provider):
+    cdef process_signalm(self, int time, dict qsignal, double q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -205,7 +207,7 @@ cdef class MarketMaker(Provider):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            cdef Order *qptr = self.local_book.insert(OneOrder(q.order_id, q)).first.second # deref here?
+            cdef Order *qptr = &deref(self.local_book.insert(OneOrder(q.order_id, q)).first).second # deref here?
             self.quote_collector.push_back(qptr)
             
             

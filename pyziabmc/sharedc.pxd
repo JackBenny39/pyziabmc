@@ -1,3 +1,6 @@
+from libcpp.pair cimport pair
+
+
 cdef enum Side:
     BID = 1
     ASK = 2
@@ -35,3 +38,6 @@ ctypedef struct Order:
     int quantity
     Side side
     int price
+    
+    
+ctypedef pair[int, Order] OneOrder    

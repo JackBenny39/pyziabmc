@@ -4,7 +4,7 @@ import pandas as pd
 
 from cython.operator cimport postincrement as inc, postdecrement as dec, dereference as deref
 
-from pyziabmc.sharedc cimport Side, OType
+from pyziabmc.sharedc cimport Side, OType, Order
 
 
 cdef class Orderbook:
@@ -171,16 +171,16 @@ cdef class Orderbook:
                     if price >= best:
                         qq = self._asks[best].quotes.front()
                         if quantity >= qq.qty:
-                            self._confirm_trade(timestamp, qq.side, qq.qty, qq.order_id, 
-                                                qq.price, qq.trader_id)
+                            self._confirm_trade(qq.trader_id, qq.order_id, timestamp, qq.qty,
+                                                qq.side, qq.price)
                             self._add_trade_to_book(qq.trader_id, qq.order_id, qq.timestamp,
                                                     trader_id, order_id, timestamp,
                                                     qq.price, qq.qty, side)
                             quantity -= qq.qty
                             self._remove_order(qq.trader_id, qq.order_id, qq.qty)
                         else:
-                            self._confirm_trade(timestamp, qq.side, quantity, qq.order_id, 
-                                                qq.price, qq.trader_id)
+                            self._confirm_trade(qq.trader_id, qq.order_id, timestamp, quantity,
+                                                qq.side, qq.price)
                             self._add_trade_to_book(qq.trader_id, qq.order_id, qq.timestamp,
                                                     trader_id, order_id, timestamp,
                                                     qq.price, quantity, side)
@@ -199,16 +199,16 @@ cdef class Orderbook:
                     if price <= best:
                         qq = self._bids[best].quotes.front()
                         if quantity >= qq.qty:
-                            self._confirm_trade(timestamp, qq.side, qq.qty, qq.order_id, 
-                                                qq.price, qq.trader_id)
+                            self._confirm_trade(qq.trader_id, qq.order_id, timestamp, qq.qty,
+                                                qq.side, qq.price)
                             self._add_trade_to_book(qq.trader_id, qq.order_id, qq.timestamp,
                                                     trader_id, order_id, timestamp,
                                                     qq.price, qq.qty, side)
                             quantity -= qq.qty
                             self._remove_order(qq.trader_id, qq.order_id, qq.qty)
                         else:
-                            self._confirm_trade(timestamp, qq.side, quantity, qq.order_id, 
-                                                qq.price, qq.trader_id)
+                            self._confirm_trade(qq.trader_id, qq.order_id, timestamp, quantity,
+                                                qq.side, qq.price)
                             self._add_trade_to_book(qq.trader_id, qq.order_id, qq.timestamp,
                                                     trader_id, order_id, timestamp,
                                                     qq.price, quantity, side)

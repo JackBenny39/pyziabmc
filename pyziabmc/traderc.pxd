@@ -1,11 +1,13 @@
-from libcpp.pair cimport pair
 from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
 
-from pyziabmc.sharedc cimport Side, TType, Order, Quote
+from pyziabmc.sharedc cimport Side, TType, Order, Quote, OneOrder
+
+import numpy as np
+cimport numpy as np
 
 ctypedef unordered_map[int, Order] LocalBook
-ctypedef pair[int, Order] OneOrder
+
 ctypedef vector[Order*] OrderV
 
 cdef TType trader_type
@@ -15,7 +17,7 @@ cdef class ZITrader:
 
     cdef public int trader_id, quantity
     cdef int _quote_sequence
-    cdef public OrderV quote_collector
+    cdef OrderV quote_collector
     
     cdef int _make_q(self, int maxq)
     cdef Order _make_add_quote(self, int time, Side side, int price)
@@ -25,8 +27,8 @@ cdef class Provider(ZITrader):
 
     cdef public int delta_t
     cdef double _delta
-    cdef public OrderV cancel_collector
-    cdef public LocalBook local_book
+    cdef OrderV cancel_collector
+    cdef LocalBook local_book
     
     cdef int _make_delta(self, double pAlpha)
     cdef Order _make_cancel_quote(self, Order &q, int time)
@@ -61,7 +63,7 @@ cdef class MarketMaker5(MarketMaker):
 cdef class PennyJumper(ZITrader):
     
     cdef int _mpi
-    cdef public OrderV cancel_collector
+    cdef OrderV cancel_collector
     cdef bint _has_ask, _has_bid
     cdef Order _ask_quote, _bid_quote
     

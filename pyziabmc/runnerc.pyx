@@ -12,7 +12,7 @@ import pandas as pd
 cimport pyziabmc.orderbookcpp as orderbook
 cimport pyziabmc.traderc as trader
 
-from pyziabmc.sharedc cimport Side, OType, TType, Order
+from pyziabmc.sharedc cimport Side, OType, TType, Order, OneOrder
 
 
 cdef class Runner:
@@ -26,6 +26,7 @@ cdef class Runner:
     cdef np.ndarray q_take, lambda_t, takerTradeV 
     
     cdef orderbook.Orderbook exchange
+    cdef trader.PennyJumper pennyjumper
     
     def __init__(self, h5filename='test.h5', mpi=1, prime1=20, run_steps=100000, write_interval=5000, **kwargs):
         self.exchange = orderbook.Orderbook()
@@ -90,7 +91,7 @@ cdef class Runner:
     def buildPennyJumper(self):
         ''' PJ id starts with 4
         '''
-        jumper = trader.PennyJumper(4000, 1, self.mpi)
+        cdef trader.PennyJumper jumper = trader.PennyJumper(4000, 1, self.mpi)
         self.liquidity_providers.update({4000: jumper})
         return jumper
 
@@ -169,7 +170,7 @@ cdef class Runner:
             for t in traders:
                 if t.trader_type == TType.Provider:
                     if not current_time % t.delta_t:
-                        self.exchange.process_order(t.process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
+                        self.exchange.process_orderr(t.process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -180,7 +181,7 @@ cdef class Runner:
                     if not current_time % t.quantity:
                         t.process_signalm(current_time, top_of_book, self.q_provide)
                         for q in t.quote_collector:
-                            self.exchange.process_order(q)
+                            self.exchange.process_orderp(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -189,13 +190,13 @@ cdef class Runner:
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.Taker:
                     if not current_time % t.delta_t:
-                        self.exchange.process_order(t.process_signalt(current_time, self.q_take[current_time]))
+                        self.exchange.process_orderr(t.process_signalt(current_time, self.q_take[current_time]))
                         if self.exchange.traded:
                             self.confirmTrades()
                             top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
                     if current_time in t.delta_t:
-                        self.exchange.process_order(t.process_signali(current_time))
+                        self.exchange.process_orderr(t.process_signali(current_time))
                         if self.exchange.traded:
                             self.confirmTrades()
                             top_of_book = self.exchange.report_top_of_book(current_time)
@@ -213,7 +214,7 @@ cdef class Runner:
             for t in traders:
                 if t.trader_type == TType.Provider:
                     if not current_time % t.delta_t:
-                        self.exchange.process_order(t.process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
+                        self.exchange.process_orderr(t.process_signalp(current_time, top_of_book, self.q_provide, self.lambda_t[current_time]))
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -224,7 +225,7 @@ cdef class Runner:
                     if not current_time % t.quantity:
                         t.process_signalm(current_time, top_of_book, self.q_provide)
                         for q in t.quote_collector:
-                            self.exchange.process_order(q)
+                            self.exchange.process_orderp(q)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -233,13 +234,13 @@ cdef class Runner:
                         top_of_book = self.exchange.report_top_of_book(current_time)
                 elif t.trader_type == TType.Taker:
                     if not current_time % t.delta_t:
-                        self.exchange.process_order(t.process_signalt(current_time, self.q_take[current_time]))
+                        self.exchange.process_orderr(t.process_signalt(current_time, self.q_take[current_time]))
                         if self.exchange.traded:
                             self.confirmTrades()
                             top_of_book = self.exchange.report_top_of_book(current_time)
                 else:
                     if current_time in t.delta_t:
-                        self.exchange.process_order(t.process_signali(current_time))
+                        self.exchange.process_orderr(t.process_signali(current_time))
                         if self.exchange.traded:
                             self.confirmTrades()
                             top_of_book = self.exchange.report_top_of_book(current_time)
@@ -247,10 +248,10 @@ cdef class Runner:
                     self.pennyjumper.process_signalj(current_time, top_of_book, self.q_take[current_time])
                     if not self.pennyjumper.cancel_collector.empty():
                         for c in self.pennyjumper.cancel_collector:
-                            self.exchange.process_order(c)
+                            self.exchange.process_orderr(c)
                     if not self.pennyjumper.quote_collector.empty():
                         for q in self.pennyjumper.quote_collector:
-                            self.exchange.process_order(q)
+                            self.exchange.process_orderp(q)
                     top_of_book = self.exchange.report_top_of_book(current_time)
             if not current_time % write_interval:
                 self.exchange.order_history_to_h5(self.h5filename)

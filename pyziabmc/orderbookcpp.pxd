@@ -1,9 +1,9 @@
 from libcpp.list cimport list as clist
 from libcpp.map cimport map
 from libcpp.pair cimport pair
-from libcpp.vector import vector
+from libcpp.vector cimport vector
 
-from pyziabmc.sharedc cimport OType, Side, Quote
+from pyziabmc.sharedc cimport OType, Side, Quote, Order
     
 ctypedef clist[Quote] Quotes
 ctypedef vector[Quote] Confirms
