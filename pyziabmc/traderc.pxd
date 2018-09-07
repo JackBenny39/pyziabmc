@@ -68,7 +68,7 @@ cdef class PennyJumper(ZITrader):
     cdef bint _has_ask, _has_bid
     cdef Order _ask_quote, _bid_quote
     
-    cdef dict _make_cancel_quote(self, Order &q, int time)
+    cdef Order _make_cancel_quote(self, Order &q, int time)
     cpdef confirm_trade_local(self, Quote &confirm)
     cdef void process_signalj(self, int time, dict qsignal, double q_taker)
     
@@ -78,7 +78,7 @@ cdef class Taker(ZITrader):
     cdef public int delta_t
     
     cdef int _make_delta(self, double tMu)
-    cpdef Order process_signalt(self, int time, double q_taker)
+    cdef Order process_signalt(self, int time, double q_taker)
     
     
 cdef class InformedTrader(ZITrader):
@@ -88,5 +88,5 @@ cdef class InformedTrader(ZITrader):
     cdef public set delta_t
     
     cdef set _make_delta(self, int informedTrades, int informedRunLength, int start, int stop)
-    cpdef Order process_signali(self, int time)
+    cdef Order process_signali(self, int time)
     

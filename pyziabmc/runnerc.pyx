@@ -98,8 +98,12 @@ cdef class Runner:
     def buildMarketMakers(self, mMMaxQ, numMMs, mMQuotes, mMQuoteRange, mMDelta):
         ''' MM id starts with 3
         '''
+        cdef trader.MarketMaker mm
         marketmaker_ids = [3000 + i for i in range(numMMs)]
-        marketmaker_list = [trader.MarketMaker(p, mMMaxQ, 0.005, mMDelta, mMQuotes, mMQuoteRange) for p in marketmaker_ids]
+        marketmaker_list = []
+        for mmid in marketmaker_ids:
+            mm = trader.MarketMaker(mmid, mMMaxQ, 0.005, mMDelta, mMQuotes, mMQuoteRange)
+            marketmaker_list.append(mm)
         self.liquidity_providers.update(dict(zip(marketmaker_ids, marketmaker_list)))
         return marketmaker_list
     
@@ -164,7 +168,6 @@ cdef class Runner:
     cdef void runMcs(self, int prime1, int write_interval):
         cdef int current_time
         cdef list traders
-        cdef Order* qptr
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             traders = random.sample(self.traders, self.num_traders)
@@ -209,7 +212,6 @@ cdef class Runner:
     cdef void runMcsPJ(self, int prime1, int write_interval):
         cdef int current_time
         cdef list traders
-        cdef Order* qptr
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             traders = random.sample(self.traders, self.num_traders)
