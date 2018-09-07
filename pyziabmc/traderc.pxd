@@ -9,6 +9,7 @@ cimport numpy as np
 ctypedef unordered_map[int, Order] LocalBook
 
 ctypedef vector[Order*] OrderV
+ctypedef vector[Order] OrderS
 
 cdef TType trader_type
 
@@ -27,7 +28,7 @@ cdef class Provider(ZITrader):
 
     cdef public int delta_t
     cdef double _delta
-    cdef OrderV cancel_collector
+    cdef OrderS cancel_collector
     cdef LocalBook local_book
     
     cdef int _make_delta(self, double pAlpha)
@@ -50,26 +51,26 @@ cdef class MarketMaker(Provider):
     
     cpdef confirm_trade_local(self, Quote &confirm)
     cdef void _cumulate_cashflow(self, int timestamp)
-    cpdef process_signalm(self, int time, dict qsignal, double q_provider)
+    cdef void process_signalm(self, int time, dict qsignal, double q_provider)
     
     
 cdef class MarketMaker5(MarketMaker):
     
     cdef np.ndarray _p5ask, _p5bid
     
-    cpdef process_signalm(self, int time, dict qsignal, double q_provider)
+    cdef void process_signalm(self, int time, dict qsignal, double q_provider)
     
     
 cdef class PennyJumper(ZITrader):
     
     cdef int _mpi
-    cdef OrderV cancel_collector
+    cdef OrderS cancel_collector
     cdef bint _has_ask, _has_bid
     cdef Order _ask_quote, _bid_quote
     
     cdef dict _make_cancel_quote(self, Order &q, int time)
     cpdef confirm_trade_local(self, Quote &confirm)
-    cpdef process_signalj(self, int time, dict qsignal, double q_taker)
+    cdef void process_signalj(self, int time, dict qsignal, double q_taker)
     
     
 cdef class Taker(ZITrader):

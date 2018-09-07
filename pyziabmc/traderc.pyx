@@ -68,7 +68,7 @@ cdef class Provider(ZITrader):
         self._delta = delta
         self.delta_t = self._make_delta(pAlpha)
         self.local_book = LocalBook()
-        self.cancel_collector = OrderV()
+        self.cancel_collector = OrderS()
                 
     def __repr__(self):
         class_name = type(self).__name__
@@ -188,7 +188,7 @@ cdef class MarketMaker(Provider):
         self.cash_flow_collector.append({'mmid': self.trader_id, 'timestamp': timestamp, 'cash_flow': self._cash_flow,
                                          'position': self._position})
             
-    cdef process_signalm(self, int time, dict qsignal, double q_provider):
+    cdef void process_signalm(self, int time, dict qsignal, double q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -228,7 +228,7 @@ cdef class MarketMaker5(MarketMaker):
         self._p5ask = np.array([1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30])
         self._p5bid = np.array([1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20])
                
-    cpdef process_signalm(self, int time, dict qsignal, double q_provider):
+    cdef void process_signalm(self, int time, dict qsignal, double q_provider):
         '''
         MM chooses prices from a grid determined by the best prevailing prices.
         MM never joins the best price if it has size=1.
@@ -272,7 +272,7 @@ cdef class PennyJumper(ZITrader):
         '''
         super().__init__(name, maxq)
         self._mpi = mpi
-        self.cancel_collector = OrderV()
+        self.cancel_collector = OrderS()
         self._has_ask = False
         self._has_bid = False
         self._ask_quote = Order(self.trader_id, 0, 0, OType.ADD, 0, Side.ASK, 0)
@@ -295,7 +295,7 @@ cdef class PennyJumper(ZITrader):
         else:
             self._has_ask = False
             
-    cpdef process_signalj(self, int time, dict qsignal, double q_taker):
+    cdef void process_signalj(self, int time, dict qsignal, double q_taker):
         '''PJ determines if it is alone at the inside, cancels if not and replaces if there is an available price 
         point inside the current quotes.
         '''

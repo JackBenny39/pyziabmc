@@ -164,6 +164,7 @@ cdef class Runner:
     cdef void runMcs(self, int prime1, int write_interval):
         cdef int current_time
         cdef list traders
+        cdef Order* qptr
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             traders = random.sample(self.traders, self.num_traders)
@@ -180,8 +181,8 @@ cdef class Runner:
                 elif t.trader_type == TType.MarketMaker:
                     if not current_time % t.quantity:
                         t.process_signalm(current_time, top_of_book, self.q_provide)
-                        for q in t.quote_collector:
-                            self.exchange.process_orderp(q)
+                        for qptr in t.quote_collector:
+                            self.exchange.process_orderp(qptr)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -208,6 +209,7 @@ cdef class Runner:
     cdef void runMcsPJ(self, int prime1, int write_interval):
         cdef int current_time
         cdef list traders
+        cdef Order* qptr
         top_of_book = self.exchange.report_top_of_book(prime1)
         for current_time in range(prime1, self.run_steps):
             traders = random.sample(self.traders, self.num_traders)
@@ -224,8 +226,8 @@ cdef class Runner:
                 elif t.trader_type == TType.MarketMaker:
                     if not current_time % t.quantity:
                         t.process_signalm(current_time, top_of_book, self.q_provide)
-                        for q in t.quote_collector:
-                            self.exchange.process_orderp(q)
+                        for qptr in t.quote_collector:
+                            self.exchange.process_orderp(qptr)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
