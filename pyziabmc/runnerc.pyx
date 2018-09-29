@@ -88,7 +88,7 @@ cdef class Runner:
         '''
         return trader.InformedTrader(5000, informedMaxQ, informedTrades, informedRunLength, prime1, self.run_steps)
     
-    def buildPennyJumper(self):
+    cdef trader.PennyJumper buildPennyJumper(self):
         ''' PJ id starts with 4
         '''
         cdef trader.PennyJumper jumper = trader.PennyJumper(4000, 1, self.mpi)
@@ -98,12 +98,8 @@ cdef class Runner:
     def buildMarketMakers(self, mMMaxQ, numMMs, mMQuotes, mMQuoteRange, mMDelta):
         ''' MM id starts with 3
         '''
-        cdef trader.MarketMaker mm
         marketmaker_ids = [3000 + i for i in range(numMMs)]
-        marketmaker_list = []
-        for mmid in marketmaker_ids:
-            mm = trader.MarketMaker(mmid, mMMaxQ, 0.005, mMDelta, mMQuotes, mMQuoteRange)
-            marketmaker_list.append(mm)
+        marketmaker_list = [trader.MarketMaker(m, mMMaxQ, 0.005, mMDelta, mMQuotes, mMQuoteRange) for m in marketmaker_ids]
         self.liquidity_providers.update(dict(zip(marketmaker_ids, marketmaker_list)))
         return marketmaker_list
     
@@ -134,16 +130,16 @@ cdef class Runner:
         return trader_list, len(trader_list)
     
     def seedOrderbook(self, pAlpha):
-        seed_provider = trader.Provider(9999, 1, 0.05, pAlpha)
+        cdef trader.Provider seed_provider = trader.Provider(9999, 1, 0.05, pAlpha)
         self.liquidity_providers.update({9999: seed_provider})
         cdef int ba = random.choice(range(1000005, 1002001, 5))
         cdef int bb = random.choice(range(997995, 999996, 5))
-        qask = Order(9999, 1, 0, OType.ADD, 1, Side.ASK, ba)
-        qbid = Order(9999, 2, 0, OType.ADD, 1, Side.BID, bb)
-        seed_provider.local_book.insert(OneOrder(qask.order_id, qask)) # Need to declare OneOrder?
+        cdef Order qask = Order(9999, 1, 0, OType.ADD, 1, Side.ASK, ba)
+        cdef Order qbid = Order(9999, 2, 0, OType.ADD, 1, Side.BID, bb)
+        seed_provider.local_book.insert(OneOrder(qask.order_id, qask))
         self.exchange.add_order_to_book(9999, 1, 0, 1, Side.ASK, ba)
         self.exchange.add_order_to_history(qask)
-        seed_provider.local_book.insert(OneOrder(qbid.order_id, qbid)) # Need to declare OneOrder?
+        seed_provider.local_book.insert(OneOrder(qbid.order_id, qbid))
         self.exchange.add_order_to_book(9999, 2, 0, 1, Side.BID, bb)
         self.exchange.add_order_to_history(qbid)
     
@@ -185,7 +181,7 @@ cdef class Runner:
                     if not current_time % t.quantity:
                         t.process_signalm(current_time, top_of_book, self.q_provide)
                         for qptr in t.quote_collector:
-                            self.exchange.process_orderp(qptr)
+                            self.exchange.process_orderr(qptr)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -229,7 +225,7 @@ cdef class Runner:
                     if not current_time % t.quantity:
                         t.process_signalm(current_time, top_of_book, self.q_provide)
                         for qptr in t.quote_collector:
-                            self.exchange.process_orderp(qptr)
+                            self.exchange.process_orderr(qptr)
                         top_of_book = self.exchange.report_top_of_book(current_time)
                     t.bulk_cancel(current_time)
                     if not t.cancel_collector.empty():
@@ -253,8 +249,8 @@ cdef class Runner:
                     if not self.pennyjumper.cancel_collector.empty():
                         for c in self.pennyjumper.cancel_collector:
                             self.exchange.process_orderr(c)
-                    if not self.pennyjumper.quote_collector.empty():
-                        for q in self.pennyjumper.quote_collector:
+                    if not self.pennyjumper.quote_collector_pj.empty():
+                        for q in self.pennyjumper.quote_collector_pj:
                             self.exchange.process_orderp(q)
                     top_of_book = self.exchange.report_top_of_book(current_time)
             if not current_time % write_interval:

@@ -29,7 +29,7 @@ cdef class ZITrader:
         '''
         self.trader_id = name # trader id
         self.quantity = self._make_q(maxq)
-        self.quote_collector = OrderV()
+        self.quote_collector = OrderS()
         self._quote_sequence = 0
         
     def __repr__(self):
@@ -83,7 +83,7 @@ cdef class Provider(ZITrader):
     cdef Order _make_cancel_quote(self, Order &q, int time):
         return Order(q.trader_id, q.order_id, time, OType.CANCEL, q.quantity, q.side, q.price)
 
-    cpdef confirm_trade_local(self, Quote &confirm):
+    cdef void confirm_trade_local(self, Quote &confirm):
         cdef Order *to_modify = &self.local_book[confirm.order_id]
         if confirm.qty == to_modify.quantity:
             self.local_book.erase(confirm.order_id)
@@ -169,7 +169,7 @@ cdef class MarketMaker(Provider):
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._delta, self._num_quotes, self._quote_range]))
             
-    cpdef confirm_trade_local(self, Quote &confirm):
+    cdef void confirm_trade_local(self, Quote &confirm):
         '''Modify _cash_flow and _position; update the local_book'''
         cdef Order *to_modify = &self.local_book[confirm.order_id]
         if confirm.side == Side.BID:
@@ -208,9 +208,8 @@ cdef class MarketMaker(Provider):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            temp_o = self.local_book.insert(OneOrder(q.order_id, q)).first
-            qptr = &deref(temp_o).second # deref here?
-            self.quote_collector.push_back(qptr)
+            self.local_book.insert(OneOrder(q.order_id, q))
+            self.quote_collector.push_back(q)
             
             
 cdef class MarketMaker5(MarketMaker):
@@ -250,9 +249,8 @@ cdef class MarketMaker5(MarketMaker):
             side = Side.ASK
         for price in prices:
             q = self._make_add_quote(time, side, price)
-            temp_o = self.local_book.insert(OneOrder(q.order_id, q)).first
-            qptr = &deref(temp_o).second # deref here?
-            self.quote_collector.push_back(qptr)
+            self.local_book.insert(OneOrder(q.order_id, q))
+            self.quote_collector.push_back(q)
             
 
 cdef class PennyJumper(ZITrader):
@@ -276,6 +274,7 @@ cdef class PennyJumper(ZITrader):
         super().__init__(name, maxq)
         self._mpi = mpi
         self.cancel_collector = OrderS()
+        self.quote_collector_pj = OrderV()
         self._has_ask = False
         self._has_bid = False
         self._ask_quote = Order(self.trader_id, 0, 0, OType.ADD, 0, Side.ASK, 0)
@@ -291,7 +290,7 @@ cdef class PennyJumper(ZITrader):
     cdef Order _make_cancel_quote(self, Order &q, int time):
         return Order(q.trader_id, q.order_id, time, OType.CANCEL, q.quantity, q.side, q.price)
 
-    cpdef confirm_trade_local(self, Quote &confirm):
+    cdef void confirm_trade_local(self, Quote &confirm):
         '''PJ has at most one bid and one ask outstanding - if it executes, set price None'''
         if confirm.side == Side.BID:
             self._has_bid = False
@@ -304,7 +303,7 @@ cdef class PennyJumper(ZITrader):
         '''
         cdef Order *qb_ptr
         cdef Order *qa_ptr
-        self.quote_collector.clear()
+        self.quote_collector_pj.clear()
         self.cancel_collector.clear()
         if qsignal['best_ask'] - qsignal['best_bid'] > self._mpi:
             # q_taker > 0.5 implies greater probability of a buy order; PJ jumps the bid
@@ -316,7 +315,7 @@ cdef class PennyJumper(ZITrader):
                 if not self._has_bid:
                     self._bid_quote = self._make_add_quote(time, Side.BID, qsignal['best_bid'] + self._mpi)
                     qb_ptr = &self._bid_quote
-                    self.quote_collector.push_back(qb_ptr)
+                    self.quote_collector_pj.push_back(qb_ptr)
                     self._has_bid = True
             else:
                 if self._has_ask: # check if not alone at the ask
@@ -326,7 +325,7 @@ cdef class PennyJumper(ZITrader):
                 if not self._has_ask:
                     self._ask_quote = self._make_add_quote(time, Side.ASK, qsignal['best_ask'] - self._mpi)
                     qa_ptr = &self._ask_quote
-                    self.quote_collector.push_back(qa_ptr)
+                    self.quote_collector_pj.push_back(qa_ptr)
                     self._has_ask = True
         else: # spread = mpi
             if self._has_bid: # check if not alone at the bid

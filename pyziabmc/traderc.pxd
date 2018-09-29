@@ -18,7 +18,7 @@ cdef class ZITrader:
 
     cdef public int trader_id, quantity
     cdef int _quote_sequence
-    cdef OrderV quote_collector
+    cdef OrderS quote_collector
     
     cdef int _make_q(self, int maxq)
     cdef Order _make_add_quote(self, int time, Side side, int price)
@@ -28,12 +28,12 @@ cdef class Provider(ZITrader):
 
     cdef public int delta_t
     cdef double _delta
-    cdef OrderS cancel_collector
+    cdef public OrderS cancel_collector
     cdef LocalBook local_book
     
     cdef int _make_delta(self, double pAlpha)
     cdef Order _make_cancel_quote(self, Order &q, int time)
-    cpdef confirm_trade_local(self, Quote &confirm)
+    cdef void confirm_trade_local(self, Quote &confirm)
     cpdef bulk_cancel(self, int time)
     cpdef Order process_signalp(self, int time, dict qsignal, double q_provider, double lambda_t)
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t)
@@ -49,7 +49,7 @@ cdef class MarketMaker(Provider):
     cdef int _num_quotes, _quote_range, _position, _cash_flow
     cdef public list cash_flow_collector
     
-    cpdef confirm_trade_local(self, Quote &confirm)
+    cdef void confirm_trade_local(self, Quote &confirm)
     cdef void _cumulate_cashflow(self, int timestamp)
     cdef void process_signalm(self, int time, dict qsignal, double q_provider)
     
@@ -65,11 +65,12 @@ cdef class PennyJumper(ZITrader):
     
     cdef int _mpi
     cdef OrderS cancel_collector
+    cdef OrderV quote_collector_pj
     cdef bint _has_ask, _has_bid
     cdef Order _ask_quote, _bid_quote
     
     cdef Order _make_cancel_quote(self, Order &q, int time)
-    cpdef confirm_trade_local(self, Quote &confirm)
+    cdef void confirm_trade_local(self, Quote &confirm)
     cdef void process_signalj(self, int time, dict qsignal, double q_taker)
     
     
