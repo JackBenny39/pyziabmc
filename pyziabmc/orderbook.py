@@ -52,7 +52,7 @@ class Orderbook(object):
         self.order_history.append({'exid': self._order_index, 'order_id': order['order_id'], 'trader_id': order['trader_id'], 
                                    'timestamp': order['timestamp'], 'type': order['type'].value, 'quantity': order['quantity'], 
                                    'side': order['side'].value, 'price': order['price']})
-    
+
     def add_order_to_book(self, order):
         '''
         Use insort to maintain on ordered list of prices which serve as pointers
@@ -68,15 +68,16 @@ class Orderbook(object):
             book_prices = self._ask_book_prices
             book = self._ask_book 
         if order['price'] in book_prices:
-            book[order['price']]['num_orders'] += 1
-            book[order['price']]['size'] += order['quantity']
-            book[order['price']]['ex_ids'].append(self._ex_index)
-            book[order['price']]['orders'][self._ex_index] = book_order
+            level = book[order['price']]
+            level['num_orders'] += 1
+            level['size'] += order['quantity']
+            level['ex_ids'].append(self._ex_index)
+            level['orders'][self._ex_index] = book_order
         else:
             bisect.insort(book_prices, order['price'])
             book[order['price']] = {'num_orders': 1, 'size': order['quantity'], 'ex_ids': [self._ex_index],
                                     'orders': {self._ex_index: book_order}}
-        self._add_order_to_lookup(book_order['trader_id'], book_order['order_id'], self._ex_index)
+        self._add_order_to_lookup(book_order['trader_id'], book_order['order_id'], self._ex_index)    
             
     def _add_order_to_lookup(self, trader_id, order_id, ex_id):
         '''
