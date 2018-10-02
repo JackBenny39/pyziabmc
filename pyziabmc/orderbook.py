@@ -108,10 +108,11 @@ class Orderbook(object):
                     
     def _modify_order(self, order_side, order_quantity, ex_id, order_price):
         '''Modify order quantity; if quantity is 0, removes the order.'''
-        book = self._bid_book if order_side == Side.BID else self._ask_book        
-        if order_quantity < book[order_price]['orders'][ex_id]['quantity']:
-            book[order_price]['size'] -= order_quantity
-            book[order_price]['orders'][ex_id]['quantity'] -= order_quantity
+        book = self._bid_book if order_side == Side.BID else self._ask_book
+        level = book[order_price]   
+        if order_quantity < level['orders'][ex_id]['quantity']:
+            level['size'] -= order_quantity
+            level['orders'][ex_id]['quantity'] -= order_quantity
         else:
             self._remove_order(order_side, order_price, ex_id)
             
