@@ -59,12 +59,13 @@ cdef class Provider(ZITrader):
     '''
     trader_type = TType.Provider
         
-    def __init__(self, int name, int maxq, double delta):
+    def __init__(self, int name, int maxq, double delta, double pAlpha):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
         super().__init__(name, maxq)
         self._delta = delta
+        self.delta_t = self._make_delta(pAlpha)
         self.local_book = {}
         self.cancel_collector = []
                 
@@ -74,6 +75,9 @@ cdef class Provider(ZITrader):
     
     def __str__(self):
         return str(tuple([self.trader_id, self.quantity, self._delta]))
+    
+    cdef int _make_delta(self, double pAlpha):
+        return int(floor(random.expovariate(pAlpha)+1)*self.quantity)
     
     cdef dict _make_cancel_quote(self, dict q, int time):
         return {'type': OType.CANCEL, 'timestamp': time, 'order_id': q['order_id'], 'trader_id': q['trader_id'],
@@ -126,11 +130,11 @@ cdef class Provider5(Provider):
     Subclass of Provider
     '''
 
-    def __init__(self, int name, int maxq, double delta):
+    def __init__(self, int name, int maxq, double delta, double pAlpha):
         '''Provider has own delta; a local_book to track outstanding orders and a 
         cancel_collector to convey cancel messages to the exchange.
         '''
-        super().__init__(name, maxq, delta)
+        super().__init__(name, maxq, delta, pAlpha)
 
     cdef int _choose_price_from_exp(self, Side side, int inside_price, double lambda_t):
         '''Prices chosen from an exponential distribution'''
@@ -152,11 +156,11 @@ cdef class MarketMaker(Provider):
     '''
     trader_type = TType.MarketMaker
 
-    def __init__(self, int name, int maxq, double delta, int num_quotes, int quote_range):
+    def __init__(self, int name, int maxq, double pAlpha, double delta, int num_quotes, int quote_range):
         '''_num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
-        super().__init__(name, maxq, delta)
+        super().__init__(name, maxq, delta, pAlpha)
         self._num_quotes = num_quotes
         self._quote_range = quote_range
         self._position = 0
@@ -221,12 +225,12 @@ cdef class MarketMaker5(MarketMaker):
     Public methods: process_signal 
     '''
     
-    def __init__(self, name, maxq, delta, num_quotes, quote_range):
+    def __init__(self, int name, int maxq, double pAlpha, double delta, int num_quotes, int quote_range):
         '''
         _num_quotes and _quote_range determine the depth of MM quoting;
         _position and _cashflow are stored MM metrics
         '''
-        super().__init__(name, maxq, delta, num_quotes, quote_range)
+        super().__init__(name, maxq, pAlpha, delta, num_quotes, quote_range)
         self._p5ask = np.array([1/20, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/30])
         self._p5bid = np.array([1/30, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/12, 1/20])
                
@@ -341,8 +345,12 @@ cdef class Taker(ZITrader):
     '''
     trader_type = TType.Taker
 
-    def __init__(self, int name, int maxq):
+    def __init__(self, int name, int maxq, double tMu):
         super().__init__(name, maxq)
+        self.delta_t = self._make_delta(tMu)
+        
+    cdef int _make_delta(self, double tMu):
+        return int(floor(random.expovariate(tMu)+1)*self.quantity)
         
     cpdef dict process_signalt(self, int time, double q_taker):
         '''Taker buys or sells with 50% probability.'''
@@ -362,10 +370,28 @@ cdef class InformedTrader(ZITrader):
     '''
     trader_type = TType.Informed
     
-    def __init__(self, int name, int maxq):
+    def __init__(self, int name, int maxq, int informedTrades, int informedRunLength, int start, int stop):
         super().__init__(name, maxq)
         self._side = random.choice([Side.BID, Side.ASK])
         self._price = 0 if self._side == Side.ASK else 2000000
+        self.delta_t = self._make_delta(informedTrades, informedRunLength, start, stop)
+        
+    
+    cdef set _make_delta(self, int informedTrades, int informedRunLength, int start, int stop):
+        cdef int runL, step
+        cdef int numChoices = int(informedTrades/(informedRunLength*self.quantity)) + 1
+        cdef list choiceRange = range(start, stop - informedRunLength + 1)
+        cdef set delta_t = set()
+        for _ in range(1, numChoices):
+            runL = 0
+            step = random.choice(choiceRange)
+            while runL < informedRunLength:
+                while step in delta_t:
+                    step += 1
+                delta_t.add(step)
+                step += 1
+                runL += 1
+        return delta_t
         
     cpdef dict process_signali(self, int time):
         '''InformedTrader buys or sells pre-specified attribute.'''
