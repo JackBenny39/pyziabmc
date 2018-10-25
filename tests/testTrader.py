@@ -11,13 +11,13 @@ class TestTrader(unittest.TestCase):
     
     def setUp(self):
         self.z1 = ZITrader(1, 5)
-        self.p1 = Provider(1001, 1, 0.025)
-        self.p5 = Provider5(1005, 1, 0.025)
-        self.m1 = MarketMaker(3001, 1, 0.05, 12, 60)
-        self.m5 = MarketMaker5(3005, 1, 0.05, 12, 60)
+        self.p1 = Provider(1001, 1, 0.025, 0.0375)
+        self.p5 = Provider5(1005, 1, 0.025, 0.0375)
+        self.m1 = MarketMaker(3001, 1, 0.005, 0.05, 12, 60)
+        self.m5 = MarketMaker5(3005, 1, 0.005, 0.05, 12, 60)
         self.j1 = PennyJumper(4001, 1, 5)
-        self.t1 = Taker(2001, 1)
-        self.i1 = InformedTrader(5001, 1)
+        self.t1 = Taker(2001, 1, 0.001)
+        self.i1 = InformedTrader(5001, 1, 250, 1, 20, 100000)
         
         self.q1 = {'order_id': 1, 'timestamp': 1, 'type': OType.ADD, 'quantity': 1, 'side': Side.BID,
                    'price': 125}
