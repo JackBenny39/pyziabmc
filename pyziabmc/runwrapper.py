@@ -17,10 +17,9 @@ def participationToList(h5in, outlist):
     ltsum_df.rename(columns={'quantity': 'trade_vol'}, inplace=True)
     ltsum_df = ltsum_df.assign(Participation = 100*ltsum_df.trade_vol/ltsum_df.trade_vol.sum())
     providers = ltsum_df.index.unique()
-    market_makers = [x for x in providers if x >= 1000 and x < 2000]
-    market_makers.append(4000)
+    market_makers = [x for x in providers if (3000 <= x <= 4000)]
     ltsum_df = ltsum_df.ix[market_makers]
-    part_dict = {'MCRun': j, 'MM_Participation': ltsum_df.loc[1000, 'Participation']}
+    part_dict = {'MCRun': j, 'MM_Participation': ltsum_df.loc[3000, 'Participation']}
     if 4000 in providers:
         part_dict.update({'PJ_Participation': ltsum_df.loc[4000, 'Participation']})
     outlist.append(part_dict)
@@ -38,13 +37,13 @@ def positionToList(h5in, outlist):
         
 def profitToList(h5in, outlist):
     trade_df = pd.read_hdf(h5in, 'trades')
-    buy_trades = trade_df[trade_df.side=='buy']
+    buy_trades = trade_df[trade_df.side==1]
     buy_trades = buy_trades.assign(BuyCashFlow = buy_trades.price*buy_trades.quantity)
     buy_trades = buy_trades.assign(BuyVol = buy_trades.groupby('resting_trader_id').quantity.cumsum(),
                                    CumulBuyCF = buy_trades.groupby('resting_trader_id').BuyCashFlow.cumsum()
                                   )
     buy_trades.rename(columns={'timestamp': 'buytimestamp'}, inplace=True)
-    sell_trades = trade_df[trade_df.side=='sell']
+    sell_trades = trade_df[trade_df.side==2]
     sell_trades = sell_trades.assign(SellCashFlow = -sell_trades.price*sell_trades.quantity)
     sell_trades = sell_trades.assign(SellVol = sell_trades.groupby('resting_trader_id').quantity.cumsum(),
                                      CumulSellCF = sell_trades.groupby('resting_trader_id').SellCashFlow.cumsum()
@@ -97,7 +96,7 @@ def tradesRetsToList(h5in, outlist):
 def cancelTradeToList(h5in, outlist1, outlist2):
     order_df = pd.read_hdf(h5in, 'orders')
     lpsum_df = order_df.groupby(['trader_id','type']).quantity.sum().unstack(level=-1)
-    lpsum_df.rename(columns={'add': 'add_vol', 'cancel': 'cancel_vol'}, inplace=True)
+    lpsum_df.rename(columns={1: 'add_vol', 2: 'cancel_vol'}, inplace=True)
     
     trade_df = pd.read_hdf(h5in, 'trades')
     ltsum_df = pd.DataFrame(trade_df.groupby(['resting_trader_id']).quantity.sum())
@@ -115,7 +114,7 @@ def cancelTradeToList(h5in, outlist1, outlist2):
     outlist1.append(total_dict)
     
     traders = both_sum.index.unique()
-    market_makers = [x for x in traders if (x == 1000 or x == 4000)]
+    market_makers = [x for x in traders if (3000 <= x <= 4000)]
     for mm in market_makers:
         cto_dict = {}
         temp = both_sum.loc[mm, :]
@@ -166,7 +165,7 @@ settings = {'Provider': True, 'numProviders': 38, 'providerMaxQ': 1, 'pAlpha': 0
             'MarketMaker': True, 'NumMMs': 1, 'MMMaxQ': 1, 'MMQuotes': 12, 'MMQuoteRange': 60, 'MMDelta': 0.025,
             'QTake': True, 'WhiteNoise': 0.001, 'CLambda': 10.0, 'Lambda0': 100}
 
-trial_no = 2003
+trial_no = 901
 end = 11
 
 h5_out = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\ABMSmallCapSum.h5' % trial_no
@@ -177,7 +176,7 @@ print(start)
 for j in range(1, end):
     random.seed(j)
     np.random.seed(j)
-    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\traderid_python_%d.h5' % (trial_no, j)
+    h5_file = 'C:\\Users\\user\\Documents\\Agent-Based Models\\h5 files\\Trial %d\\pyziabmc_python_%d.h5' % (trial_no, j)
 #    h5_file = '/Users/chuckcollver/AgentBasedModels/h5Files/Trial %d/smallcap_%d.h5' % (trial_no, j)
     
 #    market1 = runnerc.Runner(h5filename=h5_file, **settings)
